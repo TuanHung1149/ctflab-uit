@@ -77,7 +77,12 @@ class CTFLabChallenge(BaseChallenge):
             "box_env_json": challenge.box_env_json,
         }
 
-        user = get_current_user()
+        user = None
+        try:
+            user = get_current_user()
+        except Exception:
+            pass
+
         if user:
             instance = (
                 LabInstance.query.filter_by(
