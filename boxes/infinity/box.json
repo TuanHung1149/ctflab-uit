@@ -1,0 +1,35 @@
+{
+    "slug": "infinity",
+    "title": "Nebula Nexus",
+    "version": "1.0.0",
+    "description": "7 challenges covering network recon, DNS enumeration, web exploitation, credential access, RCE, privilege escalation, and buffer overflow.",
+    "image": "ctflab/infinity",
+    "build_context": ".",
+    "port_mappings": {
+        "7171": {"proto": "tcp", "label": "Python Server (Bot Check)"},
+        "80": {"proto": "tcp", "label": "Web (Nginx + TinyFileManager)"},
+        "53": {"proto": "tcp+udp", "label": "DNS (BIND9)"},
+        "8338": {"proto": "tcp", "label": "Maltrail"}
+    },
+    "challenges": [
+        {"order": 1, "flag_prefix": "NBL01", "title": "Network Service Recon", "points": 100},
+        {"order": 2, "flag_prefix": "NBL02", "title": "DNS Enumeration", "points": 100},
+        {"order": 3, "flag_prefix": "NBL03", "title": "Web Exploitation - TinyFileManager", "points": 150},
+        {"order": 4, "flag_prefix": "NBL04", "title": "Credential Access", "points": 100},
+        {"order": 5, "flag_prefix": "NBL05", "title": "Maltrail RCE", "points": 200},
+        {"order": 6, "flag_prefix": "NBL06", "title": "SUID Privilege Escalation", "points": 200},
+        {"order": 7, "flag_prefix": "NBL07", "title": "Buffer Overflow to Root", "points": 300}
+    ],
+    "env": {
+        "BOX_SLUG": "nebula",
+        "BOX_TITLE": "Nebula Nexus",
+        "BASE_DOMAIN": "nebula.lab",
+        "TXT_SUBDOMAIN": "unk",
+        "FILE_SUBDOMAIN": "inffile123"
+    },
+    "resources": {
+        "memory": "512m",
+        "cpu": 1.0,
+        "pids": 200
+    }
+}
