@@ -1,82 +1,25 @@
-<form id="challenge-update-form" method="POST">
-  <div class="form-group mb-3">
-    <label for="name">Name</label>
-    <input type="text" class="form-control" id="name" name="name"
-           value="{{ challenge.name }}">
-  </div>
+{% extends "admin/challenges/update.html" %}
 
-  <div class="form-group mb-3">
-    <label for="category">Category</label>
-    <input type="text" class="form-control" id="category" name="category"
-           value="{{ challenge.category }}">
-  </div>
+{% block type %}
+<h5 class="mt-3">CTFLab Settings</h5>
 
-  <div class="form-group mb-3">
-    <label for="description">Description</label>
-    <textarea class="form-control" id="description" name="description"
-              rows="5">{{ challenge.description }}</textarea>
-  </div>
+<div class="form-group mb-3">
+  <label for="docker_image">Docker Image</label>
+  <input type="text" class="form-control" id="docker_image" name="docker_image" value="{{ challenge.docker_image }}">
+</div>
 
-  <div class="form-group mb-3">
-    <label for="value">Value (points)</label>
-    <input type="number" class="form-control" id="value" name="value"
-           value="{{ challenge.value }}">
-  </div>
+<div class="form-group mb-3">
+  <label for="flag_prefix">Flag Prefix</label>
+  <input type="text" class="form-control" id="flag_prefix" name="flag_prefix" value="{{ challenge.flag_prefix }}">
+</div>
 
-  <div class="form-group mb-3">
-    <label for="max_attempts">Max Attempts (0 = unlimited)</label>
-    <input type="number" class="form-control" id="max_attempts" name="max_attempts"
-           value="{{ challenge.max_attempts }}">
-  </div>
+<div class="form-group mb-3">
+  <label for="instance_timeout">Instance Timeout (seconds)</label>
+  <input type="number" class="form-control" id="instance_timeout" name="instance_timeout" value="{{ challenge.instance_timeout }}">
+</div>
 
-  <div class="form-group mb-3">
-    <label for="state">State</label>
-    <select class="form-control" id="state" name="state">
-      <option value="visible" {% if challenge.state == "visible" %}selected{% endif %}>Visible</option>
-      <option value="hidden" {% if challenge.state == "hidden" %}selected{% endif %}>Hidden</option>
-    </select>
-  </div>
-
-  <hr>
-  <h5>CTFLab Settings</h5>
-
-  <div class="form-group mb-3">
-    <label for="docker_image">Docker Image</label>
-    <input type="text" class="form-control" id="docker_image" name="docker_image"
-           value="{{ challenge.docker_image }}">
-    <small class="form-text text-muted">
-      The Docker image to run for each user's lab instance.
-      Challenges with the same image share one container per user.
-    </small>
-  </div>
-
-  <div class="form-group mb-3">
-    <label for="flag_prefix">Flag Prefix</label>
-    <input type="text" class="form-control" id="flag_prefix" name="flag_prefix"
-           value="{{ challenge.flag_prefix }}">
-    <small class="form-text text-muted">
-      The flag prefix for this challenge (e.g., NBL01). Must match a key in the box's flag generation.
-    </small>
-  </div>
-
-  <div class="form-group mb-3">
-    <label for="instance_timeout">Instance Timeout (seconds)</label>
-    <input type="number" class="form-control" id="instance_timeout" name="instance_timeout"
-           value="{{ challenge.instance_timeout }}" min="300" max="86400">
-    <small class="form-text text-muted">
-      How long the instance stays alive (default: 14400 = 4 hours).
-    </small>
-  </div>
-
-  <div class="form-group mb-3">
-    <label for="box_env_json">Environment Variables (JSON)</label>
-    <textarea class="form-control" id="box_env_json" name="box_env_json"
-              rows="3">{{ challenge.box_env_json }}</textarea>
-    <small class="form-text text-muted">
-      Additional environment variables passed to the container as JSON.
-    </small>
-  </div>
-
-  <input type="hidden" name="type" value="ctflab">
-  <input type="hidden" name="id" value="{{ challenge.id }}">
-</form>
+<div class="form-group mb-3">
+  <label for="box_env_json">Environment Variables (JSON)</label>
+  <textarea class="form-control" id="box_env_json" name="box_env_json" rows="2">{{ challenge.box_env_json }}</textarea>
+</div>
+{% endblock %}
