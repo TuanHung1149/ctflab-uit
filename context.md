@@ -449,22 +449,36 @@ Thay Khoa xac nhan:
 - **Chi can Docker** provider, khong can VM
 - Phan **infra** (Docker + VPN + network isolation) la phan custom
 
--> **Kien truc moi**: CTFd + CTFd-Whale plugin (hoac custom plugin) + OpenVPN
--> Next.js frontend da lam van giu lai de tham khao / backup
+-> **Kien truc moi**: CTFd + CTFd plugin (ctflab) + OpenVPN
+-> Next.js frontend da lam van giu lai de tham khao / backup (docker-compose.custom.yml)
 -> Focus chuyen sang: deploy CTFd + tich hop Docker + OpenVPN
+-> **DA HOAN THANH**: Plugin ctflab voi day du chuc nang (2026-04-06)
 
 ### GitHub: https://github.com/TuanHung1149/ctflab-uit (PRIVATE)
 ### Commits:
 - `12c9ae3` - feat: initial project scaffolding + infinity CTF box
-- `1446afe` - feat: complete platform implementation
+- `1446afe` - feat: complete platform implementation (backend + frontend)
 - `486a24c` - feat: add box manifest and runtime flag injection
+- `3bc8161` - feat: CTFd integration + custom ctflab plugin
 
-### Buoc tiep theo:
-1. Fix build errors (backend + frontend)
-2. Chay `docker-compose up` de test
-3. Tao alembic migration
-4. Seed database voi infinity box
-5. Test full flow: register -> login -> launch -> VPN -> submit flag
+### CTFd Plugin (ctflab) - HOAN THANH:
+- **models.py**: CTFLabChallenge (extends Challenges) + LabInstance
+- **challenge_type.py**: Custom "ctflab" challenge type voi per-instance flag validation
+- **routes.py**: 5 API endpoints (launch/destroy/reset/vpn/status)
+- **docker_utils.py**: DockerManager (create/destroy/reset container + network)
+- **flag_utils.py**: Random flag generator
+- **assets/**: view.html/js, create.html/js, update.html/js (admin + user UI)
+
+### De deploy:
+```bash
+sudo bash deploy.sh
+```
+Hoac thu cong:
+```bash
+docker build -t ctflab/infinity ./boxes/infinity/
+docker compose up -d --build
+# Mo http://localhost:8000 -> tao admin -> tao challenge type "ctflab"
+```
 
 ---
 
