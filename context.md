@@ -1,5 +1,7 @@
 # Context: NT140 - CTF Box "Infinity" (Nebula Nexus)
 
+**GitHub Repo**: https://github.com/TuanHung1149/ctflab-uit (PRIVATE)
+
 ## 1. Tong Quan Du An
 
 ### Boi canh
@@ -45,6 +47,11 @@
 
 **Ghi chu**: Trong hinh, "Fake Provider (Phase 5)" bi danh dau X = chua implement.
 Focus hien tai la **Container Provider (Docker)**.
+
+**Fake Provider (xac nhan tu thay Khoa 2026-04-06)**:
+Fake Provider la provider gia lap cac thao tac start/stop/reset instance ma KHONG thuc su tao container/VM.
+Muc dich: "Do ton time cho" - giup dev/test frontend va API flow ma khong can Docker infrastructure that.
+-> Se implement sau (Phase 5 theo plan cua thay).
 
 ---
 
