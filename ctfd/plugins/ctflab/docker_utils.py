@@ -154,3 +154,14 @@ class DockerManager:
             f"# VPN config generation failed. Contact admin.\n"
             f"# Box IP: {container_ip}\n"
         )
+
+    def get_container_logs(self, container_name, tail=200):
+        """Get last N lines of container logs."""
+        try:
+            c = self.client.containers.get(container_name)
+            logs = c.logs(tail=tail, timestamps=True).decode("utf-8", errors="replace")
+            return logs
+        except docker.errors.NotFound:
+            return f"Container {container_name} not found"
+        except Exception as e:
+            return f"Error: {str(e)}"

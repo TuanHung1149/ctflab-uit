@@ -15,7 +15,7 @@ from datetime import datetime, timedelta
 from CTFd.models import db
 from CTFd.utils.decorators import authed_only, admins_only
 from CTFd.utils.user import get_current_user
-from flask import Blueprint, jsonify, request, send_file
+from flask import Blueprint, jsonify, request, send_file, render_template
 
 from .docker_utils import DockerManager
 from .flag_utils import generate_flags
@@ -453,3 +453,22 @@ def admin_logs():
             "created_at": l.created_at.isoformat() if l.created_at else None,
         } for l in logs]
     })
+
+
+@ctflab_bp.route("/admin/container-logs/<int:slot>", methods=["GET"])
+@admins_only
+def admin_container_logs(slot):
+    """Admin: get Docker container logs for a specific slot."""
+    try:
+        container_name = f"ctflab_box_{slot}"
+        result = docker_mgr.get_container_logs(container_name)
+        return jsonify({"logs": result})
+    except Exception as e:
+        return jsonify({"logs": f"Error: {str(e)}"})
+
+
+@ctflab_bp.route("/admin/dashboard", methods=["GET"])
+@admins_only
+def admin_dashboard():
+    """Admin: web dashboard page."""
+    return render_template("ctflab/admin.html")
