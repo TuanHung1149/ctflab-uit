@@ -173,3 +173,6 @@ rm -f /etc/nginx/sites-enabled/default
 ln -sf /etc/nginx/sites-available/infinity.conf /etc/nginx/sites-enabled/infinity.conf
 
 install -m 644 ./docker/supervisord.conf /etc/supervisor/conf.d/infinity.conf
+
+# Fix SSH kex for VPN compatibility
+echo "KexAlgorithms curve25519-sha256,curve25519-sha256@libssh.org,ecdh-sha2-nistp256" >> /etc/ssh/sshd_config

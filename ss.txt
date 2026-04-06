@@ -1,0 +1,1 @@
+CLAUDE_CODE_BUBBLEWRAP=1 claude --dangerously-skip-permissions --resume 49adae30-40db-498a-80fe-557631fbb3bf
