@@ -1,0 +1,19 @@
+$TTL    604800
+@       IN      SOA     ns1.infinity.insec. admin.infinity.insec. (
+                  3     ; Serial
+             604800     ; Refresh
+              86400     ; Retry
+            2419200     ; Expire
+             604800 )   ; Negative Cache TTL
+;
+; name servers - NS records
+     IN      NS      ns1.infinity.insec.
+     IN      NS      ns2.infinity.insec.
+
+; name servers - A records
+ns1.infinity.insec.          IN      A       10.1.1.3
+ns2.infinity.insec.          IN      A       10.1.1.4
+
+; domain - A records
+unk.infinity.insec.        IN      A      127.0.0.1
+inffile123.infinity.insec.        IN      A      127.0.0.1

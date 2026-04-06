@@ -1,0 +1,11 @@
+zone "infinity.insec" {
+    type primary;
+    file "/etc/bind/zones/db.infinity.insec"; # zone file path
+    allow-transfer {any;};
+};
+
+zone "unk.infinity.insec" {
+    type primary;
+    file "/etc/bind/zones/db.unk.infinity.insec"; # zone file path
+    allow-transfer {none;};
+};

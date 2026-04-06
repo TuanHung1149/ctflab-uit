@@ -1,0 +1,14 @@
+version: "3.8"
+
+services:
+  file-manager:
+    build: ./tinyfilemanager
+    expose:
+      - 80
+
+  nginx:
+    build: ./nginx
+    ports:
+      - 80:80
+    depends_on:
+      - file-manager

@@ -1,0 +1,13 @@
+services:
+  infinity:
+    build:
+      context: .
+    container_name: ${BOX_SLUG}-box
+    hostname: ${BASE_DOMAIN}
+    ports:
+      - "7171:7171"
+      - "8080:80"
+      - "8338:8338"
+      - "8053:53/tcp"
+      - "8053:53/udp"
+    restart: unless-stopped
