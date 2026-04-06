@@ -437,7 +437,14 @@ User connect VPN -> Truy cap box qua isolated network
 | Phase 5: Frontend | DONE | 15 TSX/TS files - 9 pages, build pass |
 | Phase 6: Security Hardening | DONE | iptables-isolation.sh, container caps in docker_service |
 
-### E2E Test Results (2026-04-06):
+### Security Audit (2026-04-06):
+- Player (non-root) KHONG doc duoc /root/ (permission 700)
+- flags.txt, setup.sh, bootstrap.sh: chi root doc duoc
+- /proc/1/environ: chi root doc duoc
+- FLAGS_JSON env: chi root doc duoc
+- Per-instance random flags: 7/7 MATCH giua DB va box
+- inject-flags.sh goi trong entrypoint TRUOC reset-state.sh
+- Backup flags cung duoc update de reset khong ghi de flags sai
 ```
 29/29 PASS - ALL TESTS PASSED
 ```

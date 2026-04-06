@@ -51,19 +51,31 @@ def inject_flags() -> None:
                 )
 
     # Chall 3-7: simple file replacements
-    flag_files: dict[str, str] = {
-        "NBL03": "/opt/chall3/tinyfilemanager/infinity.txt",
-        "NBL04": "/home/taylor/user.txt",
-        "NBL05": "/opt/chall5/flag.txt",
-        "NBL06": "/home/john/flag.txt",
-        "NBL07": "/root/root.txt",
+    # Write to BOTH the active location AND the backup source
+    # so that reset-state.sh restores the correct per-instance flags
+    flag_files: dict[str, list[str]] = {
+        "NBL03": ["/opt/chall3/tinyfilemanager/infinity.txt"],
+        "NBL04": ["/home/taylor/user.txt", "/root/infinity/chall4/flag.txt"],
+        "NBL05": ["/opt/chall5/flag.txt", "/root/infinity/chall5/flag.txt"],
+        "NBL06": ["/home/john/flag.txt", "/root/infinity/chall6/flag.txt"],
+        "NBL07": ["/root/root.txt", "/root/infinity/chall7/flag.txt"],
     }
-    for prefix, path_str in flag_files.items():
+    for prefix, paths in flag_files.items():
         if prefix not in flags:
             continue
-        target = Path(path_str)
-        if target.parent.exists():
-            target.write_text(flags[prefix] + "\n")
+        for path_str in paths:
+            target = Path(path_str)
+            if target.parent.exists():
+                target.write_text(flags[prefix] + "\n")
+
+    # Also update the master flags.txt so it matches the instance
+    flags_txt = Path("/root/infinity/flags.txt")
+    if flags_txt.exists():
+        lines = []
+        for i in range(1, 8):
+            key = f"NBL{i:02d}"
+            lines.append(flags.get(key, f"{key}{{placeholder}}"))
+        flags_txt.write_text("\n".join(lines) + "\n")
 
 
 if __name__ == "__main__":
