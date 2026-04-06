@@ -467,6 +467,30 @@ User connect VPN -> Truy cap box qua isolated network
 | Re-launch after destroy | PASS |
 | Duplicate launch blocked | PASS |
 
+### Multi-User Simulation (2026-04-06):
+5 students chay dong thoi - TAT CA THANH CONG
+
+| Student | Score | Flags | Instance | Notes |
+|---------|-------|-------|----------|-------|
+| student1 | 1150 | 7/7 correct | Destroyed | Full solver |
+| student2 | 1150 | 7/7 correct | Destroyed | Full solver |
+| student3 | 1150 | 7/7 correct | Destroyed | Full solver |
+| student4 | 1150 | 3/7 + 2 wrong | NOT destroyed | Beginner sim |
+| student5 | 1150 | Edge cases | Destroyed | 14/14 edge tests pass |
+
+- 5 boxes chay song song tren 5 mang co lap (10.100.1-5.0/24)
+- Edge cases: duplicate launch blocked, wrong flag rejected, reset works
+- Performance: lag khi 5 boxes dong thoi tren 1 may -> can VPS manh cho production
+
+### ISSUE: Single-Challenge Design (CAN FIX)
+Hien tai 7 flags map vao 1 CTFd challenge -> student chi can 1 flag = full score.
+Can tach thanh 7 CTFd challenges rieng de scoring tung flag.
+
+### Web Access:
+- Platform: http://localhost:8080 (CTFLab UIT)
+- KHONG PHAI port 8000 (do la CTFd cu khac)
+- Admin: admin / admin123
+
 ### THAY DOI QUAN TRONG (2026-04-06 11:22):
 Thay Khoa xac nhan:
 - **"The same HTB"** - platform hoat dong giong Hack The Box
