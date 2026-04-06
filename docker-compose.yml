@@ -10,11 +10,16 @@ services:
       - UPLOAD_FOLDER=/var/uploads
       - LOG_FOLDER=/var/log/CTFd
       - REVERSE_PROXY=true
+      - OVPN_SERVER_IP=152.42.233.178
     volumes:
       - ctfd_uploads:/var/uploads
       - ctfd_logs:/var/log/CTFd
       - /var/run/docker.sock:/var/run/docker.sock
       - ./boxes:/boxes:ro
+      - ./scripts:/scripts:ro
+      - ./vpn-configs:/vpn-configs
+      - /etc/openvpn:/etc/openvpn
+      - ./fix-vpn-routing.sh:/opt/ctflab-uit/fix-vpn-routing.sh:ro
     depends_on:
       db:
         condition: service_healthy

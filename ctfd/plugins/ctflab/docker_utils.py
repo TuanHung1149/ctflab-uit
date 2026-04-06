@@ -105,82 +105,52 @@ class DockerManager:
             pass
 
     def generate_vpn_config(self, slot, container_ip):
-        """Generate OpenVPN client config.
+        """Generate OpenVPN client config by calling setup-vpn-slot.sh.
 
-        Tries to use real PKI certs via generate-client.sh.
-        Falls back to template with placeholders if PKI not available.
+        This creates the client cert, CCD entry, and .ovpn file on the host.
+        Returns the .ovpn file content.
         """
-        import subprocess
         import os
+        import subprocess
 
-        script = "/boxes/../openvpn/generate-client.sh"
-        # Also check host-mounted paths
-        for path in ["/openvpn/generate-client.sh", "/boxes/../openvpn/generate-client.sh",
-                     os.path.join(os.path.dirname(__file__), "../../../../openvpn/generate-client.sh")]:
-            if os.path.isfile(path):
-                script = path
+        server_ip = os.environ.get("OVPN_SERVER_IP", "152.42.233.178")
+
+        # Try setup-vpn-slot.sh (creates cert + CCD + .ovpn)
+        for script in [
+            "/opt/ctflab-uit/scripts/setup-vpn-slot.sh",
+            "/scripts/setup-vpn-slot.sh",
+        ]:
+            if os.path.isfile(script):
+                try:
+                    subprocess.run(
+                        ["bash", script, str(slot), server_ip],
+                        capture_output=True, text=True, timeout=30,
+                    )
+                except Exception:
+                    pass
                 break
 
-        server_ip = os.environ.get("OVPN_SERVER_IP", "YOUR_SERVER_IP")
+        # Read generated .ovpn file
+        for ovpn_path in [
+            f"/opt/ctflab-uit/vpn-configs/slot-{slot}.ovpn",
+            f"/vpn-configs/slot-{slot}.ovpn",
+        ]:
+            if os.path.isfile(ovpn_path):
+                content = open(ovpn_path).read()
+                if "BEGIN CERTIFICATE" in content:
+                    return content
 
-        # Try real cert generation
-        if os.path.isdir("/etc/openvpn/easy-rsa/pki"):
-            try:
-                result = subprocess.run(
-                    ["bash", script, str(slot), server_ip],
-                    capture_output=True, text=True, timeout=30
-                )
-                if result.returncode == 0 and "BEGIN CERTIFICATE" in result.stdout:
-                    return result.stdout
-            except Exception:
-                pass
+        # Also fix routing after creating instance
+        try:
+            subprocess.run(
+                ["bash", "/opt/ctflab-uit/fix-vpn-routing.sh"],
+                capture_output=True, timeout=10,
+            )
+        except Exception:
+            pass
 
-        # Fallback: template with placeholders.
-        # In production this would use EasyRSA PKI to embed real
-        # certificates.  The generated template includes placeholders
-        # that must be filled in after running the server-side PKI setup.
         return (
             f"# CTFLab OpenVPN Config - Slot {slot}\n"
-            f"#\n"
-            f"# SETUP REQUIRED:\n"
-            f"# 1. Run openvpn/setup-server.sh on the host first\n"
-            f"# 2. Generate client certs:\n"
-            f"#    cd /etc/openvpn/easy-rsa && "
-            f"./easyrsa build-client-full ctflab_slot_{slot} nopass\n"
-            f"# 3. Replace the <ca>, <cert>, <key> sections below "
-            f"with actual certs\n"
-            f"#\n"
-            f"# Target box IP: {container_ip}\n"
-            f"# Accessible ports: 53 (DNS), 80 (HTTP), "
-            f"7171 (Bot), 8338 (Maltrail)\n"
-            f"\n"
-            f"client\n"
-            f"dev tun\n"
-            f"proto udp\n"
-            f"remote YOUR_SERVER_IP 1194\n"
-            f"resolv-retry infinite\n"
-            f"nobind\n"
-            f"persist-key\n"
-            f"persist-tun\n"
-            f"remote-cert-tls server\n"
-            f"verb 3\n"
-            f"\n"
-            f"# Split tunnel - only route CTF subnet through VPN\n"
-            f"route-nopull\n"
-            f"route {SUBNET_PREFIX}.{slot}.0 255.255.255.0\n"
-            f"\n"
-            f"<ca>\n"
-            f"# INSERT CA CERT HERE\n"
-            f"# cat /etc/openvpn/easy-rsa/pki/ca.crt\n"
-            f"</ca>\n"
-            f"<cert>\n"
-            f"# INSERT CLIENT CERT HERE\n"
-            f"# cat /etc/openvpn/easy-rsa/pki/issued/"
-            f"ctflab_slot_{slot}.crt\n"
-            f"</cert>\n"
-            f"<key>\n"
-            f"# INSERT CLIENT KEY HERE\n"
-            f"# cat /etc/openvpn/easy-rsa/pki/private/"
-            f"ctflab_slot_{slot}.key\n"
-            f"</key>\n"
+            f"# VPN config generation failed. Contact admin.\n"
+            f"# Box IP: {container_ip}\n"
         )
