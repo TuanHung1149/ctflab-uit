@@ -424,5 +424,32 @@ User connect VPN -> Truy cap box qua isolated network
 
 ---
 
+## 11. Tien Do Implementation (Cap nhat 2026-04-06)
+
+| Phase | Status | Files |
+|-------|--------|-------|
+| Phase 0: Scaffolding | DONE | .gitignore, .env, docker-compose.yml, boxes/infinity/ |
+| Phase 1: Backend Foundation | DONE | 32 Python files (models, schemas, auth, API routes) |
+| Phase 2: Docker Service | DONE | docker_service.py, slot_manager.py, flag_generator.py |
+| Phase 3: OpenVPN Service | DONE | openvpn_service.py, setup-server.sh |
+| Phase 4: Background Tasks | DONE | worker.py, instance_tasks.py, cleanup_tasks.py |
+| Phase 5: Frontend | DONE | 15 TSX/TS files (Next.js 14, dark theme) |
+| Phase 6: Security Hardening | PENDING | iptables-isolation.sh da co, can rate limiting |
+
+### GitHub: https://github.com/TuanHung1149/ctflab-uit (PRIVATE)
+### Commits:
+- `12c9ae3` - feat: initial project scaffolding + infinity CTF box
+- `1446afe` - feat: complete platform implementation
+- `486a24c` - feat: add box manifest and runtime flag injection
+
+### Buoc tiep theo:
+1. Fix build errors (backend + frontend)
+2. Chay `docker-compose up` de test
+3. Tao alembic migration
+4. Seed database voi infinity box
+5. Test full flow: register -> login -> launch -> VPN -> submit flag
+
+---
+
 *Tao boi Claude Code - 2026-04-06*
 *Project: NT140 / UIT - Tro Giang CTF Platform*
