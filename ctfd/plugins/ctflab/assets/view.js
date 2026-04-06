@@ -29,43 +29,52 @@ function ctflabTimeRemaining(expiresAt) {
 
 function ctflabRenderNoInstance() {
   var el = document.getElementById("instance-status");
-  if (el) el.innerHTML = '<p class="text-muted">No running instance.</p>';
+  if (el) el.innerHTML = '<p class="text-muted">No running instance. Click Start Machine to begin.</p>';
   var actions = document.getElementById("instance-actions");
   if (actions) {
     actions.style.display = "block";
     actions.innerHTML =
-      '<button class="btn btn-success btn-sm" id="btn-launch">' +
-      '<i class="fas fa-play"></i> Launch Instance</button>';
+      '<button class="btn btn-success" id="btn-launch">' +
+      '<i class="fas fa-play"></i> Start Machine</button>';
     var btn = document.getElementById("btn-launch");
     if (btn) btn.addEventListener("click", ctflabLaunchInstance);
   }
+  var guide = document.getElementById("instance-guide");
+  if (guide) guide.style.display = "none";
 }
 
 function ctflabRenderInstance(inst) {
   var badge = "";
-  if (inst.status === "running") badge = '<span class="badge badge-success">Running</span>';
-  else if (inst.status === "starting") badge = '<span class="badge badge-warning">Starting</span>';
-  else badge = '<span class="badge badge-secondary">' + inst.status + "</span>";
+  if (inst.status === "running") badge = '<span class="badge badge-success" style="font-size:1em;">Running</span>';
+  else if (inst.status === "starting") badge = '<span class="badge badge-warning" style="font-size:1em;">Starting...</span>';
+  else badge = '<span class="badge badge-secondary" style="font-size:1em;">' + inst.status + "</span>";
 
   var el = document.getElementById("instance-status");
   if (el) {
     el.innerHTML =
       "<p>" + badge +
-      '  <strong>IP:</strong> <code>' + (inst.container_ip || "pending") + "</code>" +
+      '  <strong>IP:</strong> <code style="font-size:1.1em; color:#0f0;">' + (inst.container_ip || "pending") + "</code>" +
       '  <strong>Expires:</strong> ' + ctflabTimeRemaining(inst.expires_at) + "</p>";
   }
 
   var html = "";
-  if (inst.has_vpn) {
-    html += '<a class="btn btn-info btn-sm mr-1" href="' + API_BASE + "/instances/" + inst.id + '/vpn" target="_blank"><i class="fas fa-download"></i> VPN</a>';
-  }
   if (inst.status === "running") {
-    html += '<button class="btn btn-warning btn-sm mr-1" onclick="ctflabResetInstance(' + inst.id + ')"><i class="fas fa-redo"></i> Reset</button>';
+    html += '<button class="btn btn-warning btn-sm mr-1" onclick="ctflabResetInstance(' + inst.id + ')"><i class="fas fa-redo"></i> Reset Machine</button>';
   }
-  html += '<button class="btn btn-danger btn-sm" onclick="ctflabDestroyInstance(' + inst.id + ')"><i class="fas fa-trash"></i> Destroy</button>';
+  html += '<button class="btn btn-danger btn-sm" onclick="ctflabDestroyInstance(' + inst.id + ')"><i class="fas fa-stop"></i> Stop Machine</button>';
 
   var actions = document.getElementById("instance-actions");
   if (actions) { actions.style.display = "block"; actions.innerHTML = html; }
+
+  // Show connection guide with actual IP
+  var guide = document.getElementById("instance-guide");
+  if (guide) {
+    guide.style.display = "block";
+    var sshCmd = document.getElementById("ssh-command");
+    if (sshCmd && inst.container_ip) {
+      sshCmd.textContent = "ssh taylor@" + inst.container_ip;
+    }
+  }
 }
 
 function ctflabFetchStatus() {
