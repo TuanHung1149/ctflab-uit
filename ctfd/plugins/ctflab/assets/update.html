@@ -47,6 +47,16 @@
            value="{{ challenge.docker_image }}">
     <small class="form-text text-muted">
       The Docker image to run for each user's lab instance.
+      Challenges with the same image share one container per user.
+    </small>
+  </div>
+
+  <div class="form-group mb-3">
+    <label for="flag_prefix">Flag Prefix</label>
+    <input type="text" class="form-control" id="flag_prefix" name="flag_prefix"
+           value="{{ challenge.flag_prefix }}">
+    <small class="form-text text-muted">
+      The flag prefix for this challenge (e.g., NBL01). Must match a key in the box's flag generation.
     </small>
   </div>
 

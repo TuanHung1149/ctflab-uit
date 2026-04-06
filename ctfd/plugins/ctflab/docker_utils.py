@@ -105,12 +105,40 @@ class DockerManager:
             pass
 
     def generate_vpn_config(self, slot, container_ip):
-        """Generate an OpenVPN client configuration.
+        """Generate OpenVPN client config.
 
-        In production this would use EasyRSA PKI to embed real
-        certificates.  The generated template includes placeholders
-        that must be filled in after running the server-side PKI setup.
+        Tries to use real PKI certs via generate-client.sh.
+        Falls back to template with placeholders if PKI not available.
         """
+        import subprocess
+        import os
+
+        script = "/boxes/../openvpn/generate-client.sh"
+        # Also check host-mounted paths
+        for path in ["/openvpn/generate-client.sh", "/boxes/../openvpn/generate-client.sh",
+                     os.path.join(os.path.dirname(__file__), "../../../../openvpn/generate-client.sh")]:
+            if os.path.isfile(path):
+                script = path
+                break
+
+        server_ip = os.environ.get("OVPN_SERVER_IP", "YOUR_SERVER_IP")
+
+        # Try real cert generation
+        if os.path.isdir("/etc/openvpn/easy-rsa/pki"):
+            try:
+                result = subprocess.run(
+                    ["bash", script, str(slot), server_ip],
+                    capture_output=True, text=True, timeout=30
+                )
+                if result.returncode == 0 and "BEGIN CERTIFICATE" in result.stdout:
+                    return result.stdout
+            except Exception:
+                pass
+
+        # Fallback: template with placeholders.
+        # In production this would use EasyRSA PKI to embed real
+        # certificates.  The generated template includes placeholders
+        # that must be filled in after running the server-side PKI setup.
         return (
             f"# CTFLab OpenVPN Config - Slot {slot}\n"
             f"#\n"

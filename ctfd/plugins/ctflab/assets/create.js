@@ -35,6 +35,12 @@ CTFd.plugin.run((_CTFd) => {
       return;
     }
 
+    // Validate flag_prefix
+    if (!params.flag_prefix) {
+      alert("Flag prefix is required.");
+      return;
+    }
+
     // Validate JSON for env vars
     try {
       JSON.parse(params.box_env_json || "{}");

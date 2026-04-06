@@ -6,7 +6,13 @@ from CTFd.models import Challenges, db
 
 
 class CTFLabChallengeModel(Challenges):
-    """Extended challenge model for CTFLab boxes."""
+    """Extended challenge model for CTFLab boxes.
+
+    Each challenge has a ``flag_prefix`` (e.g. "NBL01") that identifies which
+    flag from the shared container belongs to this challenge.  Multiple
+    challenges can share the same ``docker_image``; they will all reuse a
+    single running container per user.
+    """
 
     __mapper_args__ = {"polymorphic_identity": "ctflab"}
 
@@ -16,6 +22,7 @@ class CTFLabChallengeModel(Challenges):
         primary_key=True,
     )
     docker_image = db.Column(db.String(256))
+    flag_prefix = db.Column(db.String(20))  # e.g. "NBL01", "NBL02"
     box_env_json = db.Column(db.Text, default="{}")
     instance_timeout = db.Column(db.Integer, default=14400)
 
@@ -24,7 +31,11 @@ class CTFLabChallengeModel(Challenges):
 
 
 class LabInstance(db.Model):
-    """Tracks running box instances per user."""
+    """Tracks running box instances per user.
+
+    Instances are keyed by ``(user_id, docker_image)`` so that all challenges
+    sharing the same image reuse one container.
+    """
 
     __tablename__ = "lab_instances"
 
@@ -34,11 +45,7 @@ class LabInstance(db.Model):
         db.ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
     )
-    challenge_id = db.Column(
-        db.Integer,
-        db.ForeignKey("challenges.id", ondelete="CASCADE"),
-        nullable=False,
-    )
+    docker_image = db.Column(db.String(256), nullable=False)
     slot = db.Column(db.Integer, nullable=False)
     container_id = db.Column(db.String(80))
     network_id = db.Column(db.String(80))

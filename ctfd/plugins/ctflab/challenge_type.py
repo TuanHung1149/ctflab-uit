@@ -1,4 +1,9 @@
-"""CTFd challenge type definition for CTFLab."""
+"""CTFd challenge type definition for CTFLab.
+
+Each CTFLab challenge maps to a single flag_prefix inside a shared Docker
+container.  The ``attempt()`` method validates ONLY the flag that matches
+this challenge's ``flag_prefix``.
+"""
 
 import json
 
@@ -40,6 +45,7 @@ class CTFLabChallenge(BaseChallenge):
             type="ctflab",
             state=data.get("state", "visible"),
             docker_image=data.get("docker_image", ""),
+            flag_prefix=data.get("flag_prefix", ""),
             instance_timeout=int(data.get("instance_timeout", 14400)),
             box_env_json=data.get("box_env_json", "{}"),
         )
@@ -66,6 +72,7 @@ class CTFLabChallenge(BaseChallenge):
                 "scripts": cls.scripts,
             },
             "docker_image": challenge.docker_image,
+            "flag_prefix": challenge.flag_prefix,
             "instance_timeout": challenge.instance_timeout,
             "box_env_json": challenge.box_env_json,
         }
@@ -75,7 +82,7 @@ class CTFLabChallenge(BaseChallenge):
             instance = (
                 LabInstance.query.filter_by(
                     user_id=user.id,
-                    challenge_id=challenge.id,
+                    docker_image=challenge.docker_image,
                 )
                 .filter(LabInstance.status.in_(["starting", "running"]))
                 .first()
@@ -111,6 +118,8 @@ class CTFLabChallenge(BaseChallenge):
 
         if "docker_image" in data:
             challenge.docker_image = data["docker_image"]
+        if "flag_prefix" in data:
+            challenge.flag_prefix = data["flag_prefix"]
         if "instance_timeout" in data:
             challenge.instance_timeout = int(data["instance_timeout"])
         if "box_env_json" in data:
@@ -121,31 +130,50 @@ class CTFLabChallenge(BaseChallenge):
 
     @classmethod
     def delete(cls, challenge):
-        """Delete challenge and clean up any running instances."""
-        instances = LabInstance.query.filter_by(
-            challenge_id=challenge.id,
-        ).filter(LabInstance.status.in_(["starting", "running"])).all()
+        """Delete challenge and clean up containers if no sibling challenges remain.
 
-        if instances:
-            from .docker_utils import DockerManager
+        Because multiple challenges can share the same docker_image, we only
+        destroy a running container when the *last* challenge for that image
+        is deleted.
+        """
+        docker_image = challenge.docker_image
 
-            mgr = DockerManager()
-            for inst in instances:
-                try:
-                    mgr.destroy_instance(inst.container_id, inst.network_id)
-                except Exception:
-                    pass
-                inst.status = "stopped"
+        # Count sibling challenges that share this image (excluding self).
+        sibling_count = (
+            CTFLabChallengeModel.query.filter(
+                CTFLabChallengeModel.docker_image == docker_image,
+                CTFLabChallengeModel.id != challenge.id,
+            ).count()
+        )
+
+        if sibling_count == 0:
+            # Last challenge for this image -- destroy all instances.
+            instances = (
+                LabInstance.query.filter_by(docker_image=docker_image)
+                .filter(LabInstance.status.in_(["starting", "running"]))
+                .all()
+            )
+            if instances:
+                from .docker_utils import DockerManager
+
+                mgr = DockerManager()
+                for inst in instances:
+                    try:
+                        mgr.destroy_instance(inst.container_id, inst.network_id)
+                    except Exception:
+                        pass
+                    inst.status = "stopped"
+
+            LabInstance.query.filter_by(docker_image=docker_image).delete()
 
         Fails.query.filter_by(challenge_id=challenge.id).delete()
         Solves.query.filter_by(challenge_id=challenge.id).delete()
-        LabInstance.query.filter_by(challenge_id=challenge.id).delete()
         CTFLabChallengeModel.query.filter_by(id=challenge.id).delete()
         db.session.commit()
 
     @classmethod
     def attempt(cls, challenge, request):
-        """Validate flag submission against instance-specific flags."""
+        """Validate flag submission against this challenge's flag_prefix only."""
         data = request.form or request.get_json()
         submission = data.get("submission", "").strip()
 
@@ -156,7 +184,7 @@ class CTFLabChallenge(BaseChallenge):
         instance = (
             LabInstance.query.filter_by(
                 user_id=user.id,
-                challenge_id=challenge.id,
+                docker_image=challenge.docker_image,
             )
             .filter(LabInstance.status == "running")
             .first()
@@ -167,9 +195,10 @@ class CTFLabChallenge(BaseChallenge):
 
         flags = json.loads(instance.flags_json) if instance.flags_json else {}
 
-        for _prefix, flag_value in flags.items():
-            if submission == flag_value:
-                return True, "Correct!"
+        # Only check the flag that belongs to this challenge's prefix.
+        expected_flag = flags.get(challenge.flag_prefix, "")
+        if expected_flag and submission == expected_flag:
+            return True, "Correct!"
 
         return False, "Incorrect flag"
 

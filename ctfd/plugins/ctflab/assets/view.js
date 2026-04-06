@@ -3,6 +3,9 @@
  *
  * Handles instance lifecycle (launch / destroy / reset),
  * VPN download, status polling, and flag submission.
+ *
+ * Instances are keyed by docker_image so that all challenges sharing
+ * the same image see the same running container.
  */
 
 CTFd.plugin.run((_CTFd) => {
@@ -11,6 +14,7 @@ CTFd.plugin.run((_CTFd) => {
 
   let pollTimer = null;
   let currentChallengeId = null;
+  let currentDockerImage = "";
 
   // ---------------------------------------------------------------------------
   // Helpers
@@ -114,8 +118,13 @@ CTFd.plugin.run((_CTFd) => {
   // ---------------------------------------------------------------------------
 
   function fetchStatus() {
+    var url = API_BASE + "/instances";
+    if (currentDockerImage) {
+      url += "?docker_image=" + encodeURIComponent(currentDockerImage);
+    }
+
     $.ajax({
-      url: API_BASE + "/instances",
+      url: url,
       method: "GET",
       headers: apiHeaders(),
       success: function (resp) {
@@ -288,6 +297,9 @@ CTFd.plugin.run((_CTFd) => {
           currentChallengeId = parseInt(match[1]);
         }
       }
+
+      // Read the docker_image from the hidden input injected by view.html.
+      currentDockerImage = $("#ctflab-docker-image").val() || "";
 
       fetchStatus();
 

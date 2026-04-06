@@ -1,4 +1,8 @@
-"""Flask blueprint with API routes for CTFLab instance management."""
+"""Flask blueprint with API routes for CTFLab instance management.
+
+Instances are keyed by ``docker_image`` rather than ``challenge_id`` so that
+multiple challenges sharing the same image reuse a single container per user.
+"""
 
 import io
 import json
@@ -39,10 +43,27 @@ def _find_free_slot():
     return None
 
 
+def _collect_prefixes_for_image(docker_image):
+    """Return all flag_prefix values defined for challenges with the given image."""
+    challenges = CTFLabChallengeModel.query.filter_by(
+        docker_image=docker_image
+    ).all()
+    prefixes = [c.flag_prefix for c in challenges if c.flag_prefix]
+    if not prefixes:
+        # Fallback: generate the legacy NBL01..NBL07 set.
+        prefixes = [f"NBL{str(i).zfill(2)}" for i in range(1, 8)]
+    return prefixes
+
+
 @ctflab_bp.route("/instances", methods=["POST"])
 @authed_only
 def create_instance():
-    """Launch a new lab instance for the current user."""
+    """Launch a new lab instance for the current user.
+
+    The caller sends ``challenge_id``; we resolve the ``docker_image`` from
+    the challenge and check whether the user already has a running instance
+    for that image.  If so, the existing instance is returned (not an error).
+    """
     user = get_current_user()
     data = request.get_json()
     challenge_id = data.get("challenge_id")
@@ -51,20 +72,31 @@ def create_instance():
     if not challenge:
         return jsonify({"error": "Challenge not found"}), 404
 
+    docker_image = challenge.docker_image
+
+    # Reuse an existing instance for the same image.
     existing = (
-        LabInstance.query.filter_by(user_id=user.id)
+        LabInstance.query.filter_by(
+            user_id=user.id,
+            docker_image=docker_image,
+        )
         .filter(LabInstance.status.in_(["starting", "running"]))
         .first()
     )
+
     if existing:
-        return (
-            jsonify(
-                {
-                    "error": "You already have a running instance. "
-                    "Destroy it first."
-                }
-            ),
-            409,
+        return jsonify(
+            {
+                "id": existing.id,
+                "status": existing.status,
+                "container_ip": existing.container_ip,
+                "expires_at": (
+                    existing.expires_at.isoformat()
+                    if existing.expires_at
+                    else None
+                ),
+                "has_vpn": bool(existing.vpn_config),
+            }
         )
 
     slot = _find_free_slot()
@@ -77,13 +109,13 @@ def create_instance():
     env_data = (
         json.loads(challenge.box_env_json) if challenge.box_env_json else {}
     )
-    prefixes = [f"NBL{str(i).zfill(2)}" for i in range(1, 8)]
+    prefixes = _collect_prefixes_for_image(docker_image)
     flags = generate_flags(prefixes)
 
     timeout_seconds = challenge.instance_timeout or 14400
     instance = LabInstance(
         user_id=user.id,
-        challenge_id=challenge_id,
+        docker_image=docker_image,
         slot=slot,
         status="starting",
         flags_json=json.dumps(flags),
@@ -94,7 +126,7 @@ def create_instance():
 
     try:
         container_id, network_id, container_ip = docker_mgr.create_instance(
-            image=challenge.docker_image,
+            image=docker_image,
             slot=slot,
             flags=flags,
             env_overrides=env_data,
@@ -122,6 +154,7 @@ def create_instance():
             "status": instance.status,
             "container_ip": instance.container_ip,
             "expires_at": instance.expires_at.isoformat(),
+            "has_vpn": bool(instance.vpn_config),
         }
     )
 
@@ -129,13 +162,21 @@ def create_instance():
 @ctflab_bp.route("/instances", methods=["GET"])
 @authed_only
 def get_instance():
-    """Get the current user's active lab instance."""
+    """Get the current user's active lab instance.
+
+    Accepts an optional ``docker_image`` query parameter to scope the lookup
+    to a specific image.  Without it the first active instance is returned.
+    """
     user = get_current_user()
-    instance = (
-        LabInstance.query.filter_by(user_id=user.id)
-        .filter(LabInstance.status.in_(["starting", "running"]))
-        .first()
+    docker_image = request.args.get("docker_image", "")
+
+    query = LabInstance.query.filter_by(user_id=user.id).filter(
+        LabInstance.status.in_(["starting", "running"])
     )
+    if docker_image:
+        query = query.filter_by(docker_image=docker_image)
+
+    instance = query.first()
 
     if not instance:
         return jsonify({"instance": None})
@@ -144,7 +185,7 @@ def get_instance():
         {
             "instance": {
                 "id": instance.id,
-                "challenge_id": instance.challenge_id,
+                "docker_image": instance.docker_image,
                 "status": instance.status,
                 "container_ip": instance.container_ip,
                 "expires_at": (

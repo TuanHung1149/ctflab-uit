@@ -1,6 +1,5 @@
 """CTFLab plugin - HTB-style isolated Docker lab instances with OpenVPN access."""
 
-from flask import Blueprint
 from CTFd.plugins import register_plugin_assets_directory
 from CTFd.plugins.challenges import CHALLENGE_CLASSES
 
@@ -8,7 +7,7 @@ from CTFd.plugins.challenges import CHALLENGE_CLASSES
 def load(app):
     """Register the CTFLab plugin with CTFd."""
     from .challenge_type import CTFLabChallenge
-    from .models import CTFLabChallengeModel, LabInstance
+    from .expire import start_expire_thread
     from .routes import ctflab_bp
 
     app.register_blueprint(ctflab_bp)
@@ -19,3 +18,5 @@ def load(app):
         from CTFd.models import db
 
         db.create_all()
+
+    start_expire_thread(app)
