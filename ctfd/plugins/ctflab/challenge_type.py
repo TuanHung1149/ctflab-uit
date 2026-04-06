@@ -200,10 +200,13 @@ class CTFLabChallenge(BaseChallenge):
 
         flags = json.loads(instance.flags_json) if instance.flags_json else {}
 
-        # Only check the flag that belongs to this challenge's prefix.
-        expected_flag = flags.get(challenge.flag_prefix, "")
-        if expected_flag and submission == expected_flag:
-            return True, "Correct!"
+        prefix = challenge.flag_prefix or ""
+
+        # If prefix is generic (e.g. "NBL"), accept ANY flag matching NBLxx
+        # If prefix is specific (e.g. "NBL01"), accept only that one
+        for flag_key, flag_value in flags.items():
+            if flag_key.startswith(prefix) and submission == flag_value:
+                return True, "Correct!"
 
         return False, "Incorrect flag"
 

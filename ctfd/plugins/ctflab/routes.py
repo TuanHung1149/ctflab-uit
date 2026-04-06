@@ -51,7 +51,14 @@ def _collect_prefixes_for_image(docker_image):
     challenges = CTFLabChallengeModel.query.filter_by(
         docker_image=docker_image
     ).all()
-    prefixes = [c.flag_prefix for c in challenges if c.flag_prefix]
+    prefixes = []
+    for c in challenges:
+        if c.flag_prefix:
+            # If prefix is generic like "NBL", expand to NBL01-NBL07
+            if len(c.flag_prefix) <= 3:
+                prefixes.extend([f"{c.flag_prefix}{str(i).zfill(2)}" for i in range(1, 8)])
+            else:
+                prefixes.append(c.flag_prefix)
     if not prefixes:
         prefixes = [f"NBL{str(i).zfill(2)}" for i in range(1, 8)]
     return prefixes
@@ -59,34 +66,32 @@ def _collect_prefixes_for_image(docker_image):
 
 def _update_vpn_route(username, slot=None):
     """Update OpenVPN CCD to push route for user's active box."""
-    script = "/opt/ctflab-uit/scripts/update-vpn-route.sh"
-    if not os.path.isfile(script):
-        return
-    try:
-        action = str(slot) if slot else "remove"
-        subprocess.run(
-            ["bash", script, username, action],
-            capture_output=True, timeout=10,
-        )
-    except Exception:
-        pass
+    for script in ["/scripts/update-vpn-route.sh", "/opt/ctflab-uit/scripts/update-vpn-route.sh"]:
+        if os.path.isfile(script):
+            try:
+                action = str(slot) if slot else "remove"
+                subprocess.run(["bash", script, username, action], capture_output=True, timeout=10)
+            except Exception:
+                pass
+            return
 
 
 def _ensure_user_vpn(username):
     """Generate VPN cert + .ovpn for user if not exists."""
-    script = "/opt/ctflab-uit/scripts/setup-vpn-user.sh"
-    ovpn_path = f"/opt/ctflab-uit/vpn-configs/{username}.ovpn"
-    if os.path.isfile(ovpn_path):
-        return ovpn_path
-    if os.path.isfile(script):
-        try:
-            subprocess.run(
-                ["bash", script, username, SERVER_IP],
-                capture_output=True, timeout=30,
-            )
-        except Exception:
-            pass
-    return ovpn_path if os.path.isfile(ovpn_path) else None
+    for ovpn_path in [f"/vpn-configs/{username}.ovpn", f"/opt/ctflab-uit/vpn-configs/{username}.ovpn"]:
+        if os.path.isfile(ovpn_path):
+            return ovpn_path
+    for script in ["/scripts/setup-vpn-user.sh", "/opt/ctflab-uit/scripts/setup-vpn-user.sh"]:
+        if os.path.isfile(script):
+            try:
+                subprocess.run(["bash", script, username, SERVER_IP], capture_output=True, timeout=30)
+            except Exception:
+                pass
+            break
+    for ovpn_path in [f"/vpn-configs/{username}.ovpn", f"/opt/ctflab-uit/vpn-configs/{username}.ovpn"]:
+        if os.path.isfile(ovpn_path):
+            return ovpn_path
+    return None
 
 
 def _fix_routing():
