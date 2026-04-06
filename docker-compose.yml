@@ -2,7 +2,7 @@ services:
   ctfd:
     build: ./ctfd
     ports:
-      - "8000:8000"
+      - "8080:8000"
     environment:
       - DATABASE_URL=mysql+pymysql://ctfd:ctfd@db/ctfd
       - REDIS_URL=redis://cache:6379

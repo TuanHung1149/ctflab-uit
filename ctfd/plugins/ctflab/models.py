@@ -39,7 +39,7 @@ class LabInstance(db.Model):
         db.ForeignKey("challenges.id", ondelete="CASCADE"),
         nullable=False,
     )
-    slot = db.Column(db.Integer, unique=True, nullable=False)
+    slot = db.Column(db.Integer, nullable=False)
     container_id = db.Column(db.String(80))
     network_id = db.Column(db.String(80))
     container_ip = db.Column(db.String(20))

@@ -12,7 +12,13 @@ class DockerManager:
     """Manages Docker containers and networks for lab instances."""
 
     def __init__(self):
-        self.client = docker.from_env()
+        self._client = None
+
+    @property
+    def client(self):
+        if self._client is None:
+            self._client = docker.from_env()
+        return self._client
 
     def create_instance(self, image, slot, flags, env_overrides=None):
         """Create an isolated network and run the box container.

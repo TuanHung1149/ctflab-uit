@@ -437,10 +437,28 @@ User connect VPN -> Truy cap box qua isolated network
 | Phase 5: Frontend | DONE | 15 TSX/TS files - 9 pages, build pass |
 | Phase 6: Security Hardening | DONE | iptables-isolation.sh, container caps in docker_service |
 
-### Build Verification (2026-04-06):
-- Backend: 19 routes load OK (auth, boxes, instances, submissions, health, docs)
-- Frontend: `next build` PASS - 9 pages (8 static + 1 dynamic)
-- Python imports: all models/schemas/auth clean
+### E2E Test Results (2026-04-06):
+```
+29/29 PASS - ALL TESTS PASSED
+```
+| Test | Result |
+|------|--------|
+| CTFd responds | PASS |
+| User login | PASS |
+| Challenge listing (Nebula Nexus) | PASS |
+| Launch instance | PASS - container at 10.100.1.2 |
+| Docker container running | PASS - 5/5 services |
+| FLAGS_JSON injected | PASS - 7 random flags |
+| Instance status API | PASS |
+| VPN config download | PASS - split tunnel config |
+| Correct flag submission | PASS |
+| Wrong flag rejected | PASS |
+| Duplicate solve blocked | PASS |
+| Scoreboard | PASS |
+| Reset instance | PASS |
+| Destroy instance | PASS - container + network removed |
+| Re-launch after destroy | PASS |
+| Duplicate launch blocked | PASS |
 
 ### THAY DOI QUAN TRONG (2026-04-06 11:22):
 Thay Khoa xac nhan:

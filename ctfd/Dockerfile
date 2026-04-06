@@ -1,6 +1,6 @@
 FROM ctfd/ctfd:3.7.1
 
-# Install Docker CLI inside CTFd container (to manage challenge containers)
+# Install Docker CLI + Python docker SDK
 USER root
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
@@ -13,10 +13,10 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends docker-ce-cli && \
     rm -rf /var/lib/apt/lists/*
 
-# Install Python dependencies for our plugin
 RUN pip install docker
 
 # Copy our custom plugin
 COPY plugins/ctflab /opt/CTFd/CTFd/plugins/ctflab
 
-USER 1001
+# Run as root to access Docker socket (required for container management)
+USER root
