@@ -19,7 +19,7 @@ from flask import Blueprint, jsonify, request, send_file
 
 from .docker_utils import DockerManager
 from .flag_utils import generate_flags
-from .models import CTFLabChallengeModel, LabInstance
+from .models import CTFLabChallengeModel, LabInstance, ActivityLog
 
 ctflab_bp = Blueprint(
     "ctflab",
@@ -32,6 +32,23 @@ docker_mgr = DockerManager()
 
 MAX_SLOT = 50
 SERVER_IP = os.environ.get("OVPN_SERVER_IP", "152.42.233.178")
+
+
+def _log_action(action, detail=None, user_id=None):
+    """Log user action for admin monitoring."""
+    try:
+        ip = request.remote_addr if request else None
+        if not user_id:
+            try:
+                u = get_current_user()
+                user_id = u.id if u else None
+            except Exception:
+                pass
+        log = ActivityLog(user_id=user_id, action=action, detail=detail, ip_address=ip)
+        db.session.add(log)
+        db.session.commit()
+    except Exception:
+        pass
 
 
 def _find_free_slot():
@@ -118,6 +135,7 @@ def download_user_vpn():
         return jsonify({"error": "VPN config not available. Contact admin."}), 500
 
     content = open(ovpn_path).read()
+    _log_action("vpn_download")
     buf = io.BytesIO(content.encode())
     return send_file(
         buf,
@@ -206,6 +224,7 @@ def create_instance():
         # Fix Docker nft rules for VPN routing
         _fix_routing()
 
+        _log_action("start_machine", f"IP={container_ip}, slot={slot}, image={docker_image}")
         db.session.commit()
     except Exception as e:
         instance.status = "error"
@@ -269,6 +288,7 @@ def destroy_instance(instance_id):
     _update_vpn_route(user.name, None)
 
     instance.status = "stopped"
+    _log_action("stop_machine", f"slot={instance.slot}")
     db.session.commit()
     return jsonify({"status": "stopped"})
 
@@ -289,6 +309,7 @@ def reset_instance(instance_id):
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+    _log_action("reset_machine", f"slot={instance.slot}")
     return jsonify({"status": "reset"})
 
 
@@ -405,4 +426,30 @@ def admin_stats():
         "total_solves": total_solves,
         "total_fails": total_fails,
         "total_suspicious": total_suspicious,
+    })
+
+
+@ctflab_bp.route("/admin/logs", methods=["GET"])
+@admins_only
+def admin_logs():
+    """Admin: view activity logs. Optional ?action=start_machine&limit=50"""
+
+    action_filter = request.args.get("action", "")
+    limit = min(int(request.args.get("limit", 200)), 500)
+
+    query = ActivityLog.query.order_by(ActivityLog.id.desc())
+    if action_filter:
+        query = query.filter_by(action=action_filter)
+    logs = query.limit(limit).all()
+
+    return jsonify({
+        "logs": [{
+            "id": l.id,
+            "user_id": l.user_id,
+            "username": l.user.name if l.user else None,
+            "action": l.action,
+            "detail": l.detail,
+            "ip_address": l.ip_address,
+            "created_at": l.created_at.isoformat() if l.created_at else None,
+        } for l in logs]
     })

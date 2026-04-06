@@ -59,6 +59,21 @@ class LabInstance(db.Model):
     user = db.relationship("Users", foreign_keys=[user_id])
 
 
+class ActivityLog(db.Model):
+    """Logs all user actions for admin monitoring."""
+
+    __tablename__ = "ctflab_activity_logs"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
+    action = db.Column(db.String(50), nullable=False)  # login, start, stop, reset, submit, vpn_download
+    detail = db.Column(db.Text)
+    ip_address = db.Column(db.String(50))
+    created_at = db.Column(db.DateTime, default=datetime.datetime.utcnow)
+
+    user = db.relationship("Users", foreign_keys=[user_id])
+
+
 class SuspiciousSubmission(db.Model):
     """Logs when a user submits a flag from another user's instance (flag sharing)."""
 
