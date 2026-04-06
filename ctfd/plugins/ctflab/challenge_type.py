@@ -202,11 +202,37 @@ class CTFLabChallenge(BaseChallenge):
 
         prefix = challenge.flag_prefix or ""
 
-        # If prefix is generic (e.g. "NBL"), accept ANY flag matching NBLxx
-        # If prefix is specific (e.g. "NBL01"), accept only that one
+        # Check against user's OWN instance flags
         for flag_key, flag_value in flags.items():
             if flag_key.startswith(prefix) and submission == flag_value:
                 return True, "Correct!"
+
+        # Flag doesn't match user's instance - check if it matches ANY other instance
+        # This detects flag sharing between users
+        if submission.startswith(prefix) or (len(prefix) <= 3 and submission[:3] == prefix):
+            other_instances = (
+                LabInstance.query.filter(
+                    LabInstance.user_id != user.id,
+                    LabInstance.flags_json.contains(submission),
+                ).all()
+            )
+            for other in other_instances:
+                other_flags = json.loads(other.flags_json) if other.flags_json else {}
+                for fv in other_flags.values():
+                    if submission == fv:
+                        # FLAG SHARING DETECTED - log it
+                        from .models import SuspiciousSubmission
+                        sus = SuspiciousSubmission(
+                            user_id=user.id,
+                            challenge_id=challenge.id,
+                            submitted_flag=submission,
+                            matched_user_id=other.user_id,
+                            matched_instance_id=other.id,
+                        )
+                        db.session.add(sus)
+                        db.session.commit()
+                        # Still reject - but admin will see the report
+                        return False, "Incorrect flag"
 
         return False, "Incorrect flag"
 

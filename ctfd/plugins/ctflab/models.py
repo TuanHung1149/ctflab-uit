@@ -57,3 +57,19 @@ class LabInstance(db.Model):
     expires_at = db.Column(db.DateTime)
 
     user = db.relationship("Users", foreign_keys=[user_id])
+
+
+class SuspiciousSubmission(db.Model):
+    """Logs when a user submits a flag from another user's instance (flag sharing)."""
+
+    __tablename__ = "suspicious_submissions"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    challenge_id = db.Column(db.Integer, nullable=False)
+    submitted_flag = db.Column(db.String(200))
+    matched_user_id = db.Column(db.Integer)  # whose instance this flag belongs to
+    matched_instance_id = db.Column(db.Integer)
+    created_at = db.Column(db.DateTime, default=datetime.datetime.utcnow)
+
+    user = db.relationship("Users", foreign_keys=[user_id])

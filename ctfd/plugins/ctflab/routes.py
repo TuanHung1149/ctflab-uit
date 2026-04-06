@@ -13,7 +13,7 @@ import subprocess
 from datetime import datetime, timedelta
 
 from CTFd.models import db
-from CTFd.utils.decorators import authed_only
+from CTFd.utils.decorators import authed_only, admins_only
 from CTFd.utils.user import get_current_user
 from flask import Blueprint, jsonify, request, send_file
 
@@ -298,3 +298,111 @@ def reset_instance(instance_id):
 def download_instance_vpn(instance_id):
     """Download VPN config (redirects to per-user VPN)."""
     return download_user_vpn()
+
+
+# ── Admin routes ───────────────────────────────────────────────────
+
+@ctflab_bp.route("/admin/instances", methods=["GET"])
+@admins_only
+def admin_instances():
+    """Admin: list all active instances."""
+
+    instances = LabInstance.query.filter(
+        LabInstance.status.in_(["starting", "running"])
+    ).all()
+
+    return jsonify({
+        "instances": [{
+            "id": i.id,
+            "user_id": i.user_id,
+            "username": i.user.name if i.user else "?",
+            "docker_image": i.docker_image,
+            "slot": i.slot,
+            "container_ip": i.container_ip,
+            "status": i.status,
+            "created_at": i.created_at.isoformat() if i.created_at else None,
+            "expires_at": i.expires_at.isoformat() if i.expires_at else None,
+        } for i in instances]
+    })
+
+
+@ctflab_bp.route("/admin/instances/history", methods=["GET"])
+@admins_only
+def admin_instance_history():
+    """Admin: all instances (including stopped)."""
+
+    instances = LabInstance.query.order_by(LabInstance.id.desc()).limit(100).all()
+
+    return jsonify({
+        "instances": [{
+            "id": i.id,
+            "user_id": i.user_id,
+            "username": i.user.name if i.user else "?",
+            "docker_image": i.docker_image,
+            "slot": i.slot,
+            "container_ip": i.container_ip,
+            "status": i.status,
+            "created_at": i.created_at.isoformat() if i.created_at else None,
+            "expires_at": i.expires_at.isoformat() if i.expires_at else None,
+        } for i in instances]
+    })
+
+
+@ctflab_bp.route("/admin/suspicious", methods=["GET"])
+@admins_only
+def admin_suspicious():
+    """Admin: list suspected flag sharing."""
+
+    from .models import SuspiciousSubmission
+    subs = SuspiciousSubmission.query.order_by(
+        SuspiciousSubmission.id.desc()
+    ).limit(100).all()
+
+    results = []
+    for s in subs:
+        # Get matched user name
+        matched_user = None
+        if s.matched_user_id:
+            from CTFd.models import Users
+            mu = Users.query.get(s.matched_user_id)
+            matched_user = mu.name if mu else f"user#{s.matched_user_id}"
+
+        results.append({
+            "id": s.id,
+            "user_id": s.user_id,
+            "username": s.user.name if s.user else "?",
+            "challenge_id": s.challenge_id,
+            "submitted_flag": s.submitted_flag,
+            "matched_user": matched_user,
+            "matched_instance_id": s.matched_instance_id,
+            "created_at": s.created_at.isoformat() if s.created_at else None,
+        })
+
+    return jsonify({"suspicious": results})
+
+
+@ctflab_bp.route("/admin/stats", methods=["GET"])
+@admins_only
+def admin_stats():
+    """Admin: platform statistics."""
+
+    from CTFd.models import Users, Solves, Fails
+    from .models import SuspiciousSubmission
+
+    active_instances = LabInstance.query.filter(
+        LabInstance.status.in_(["starting", "running"])
+    ).count()
+    total_instances = LabInstance.query.count()
+    total_users = Users.query.count()
+    total_solves = Solves.query.count()
+    total_fails = Fails.query.count()
+    total_suspicious = SuspiciousSubmission.query.count()
+
+    return jsonify({
+        "active_instances": active_instances,
+        "total_instances": total_instances,
+        "total_users": total_users,
+        "total_solves": total_solves,
+        "total_fails": total_fails,
+        "total_suspicious": total_suspicious,
+    })
