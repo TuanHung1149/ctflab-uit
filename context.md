@@ -519,9 +519,18 @@ scoreboard accuracy (1150pts full / 350pts partial)
 - docker_utils.py: tu dong dung cert that neu PKI co san, fallback template
 
 ### Web Access:
-- Platform: http://localhost:8080 (CTFLab UIT)
-- KHONG PHAI port 8000 (do la CTFd cu khac)
+- **VPS**: http://152.42.233.178:8080 (CTFLab UIT - PRODUCTION)
+- Local: http://localhost:8080
 - Admin: admin / admin123
+
+### VPS Deployment (2026-04-06):
+- Server: 152.42.233.178 (DigitalOcean, 8GB RAM, Ubuntu 24.04)
+- CTFd: running on port 8080
+- OpenVPN: running on port 1194/udp (PKI + certs auto-generated)
+- Firewall: UFW - ports 22, 80, 8080, 1194/udp open
+- 7 challenges seeded, full flow tested on VPS
+- Infinity box builds and runs successfully
+- VPN configs include REAL certificates (not placeholders)
 
 ### THAY DOI QUAN TRONG (2026-04-06 11:22):
 Thay Khoa xac nhan:
