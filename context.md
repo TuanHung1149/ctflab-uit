@@ -415,12 +415,13 @@ User connect VPN -> Truy cap box qua isolated network
 | 4 | Bao nhieu box/user? | ... | |
 | 5 | Thoi gian song instance? | ... | |
 | 6 | Scoreboard/cham diem? | ... | |
-| 7 | Box khac ngoai infinity? | ... | |
+| 7 | Box khac ngoai infinity? | Chi can Docker, khong can VM provider | 2026-04-06 |
 | 8 | Ai tao box? | ... | |
 | 9 | Auth method? | ... | |
 | 10 | Phan quyen? | ... | |
 | 11 | Deadline? | ... | |
 | 12 | Lam nhom hay 1 minh? | ... | |
+| 13 | Frontend? | **CTFd cung OK** - co the dung CTFd thay vi tu lam frontend | 2026-04-06 |
 
 ---
 
