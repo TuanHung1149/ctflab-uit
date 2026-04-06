@@ -570,6 +570,65 @@ docker compose up -d --build
 # Mo http://localhost:8000 -> tao admin -> tao challenge type "ctflab"
 ```
 
+### HTB-Style VPN Model (2026-04-06 - DA IMPLEMENT):
+**Y chang HackTheBox:**
+1. User dang ky -> download 1 file .ovpn (per-user, dung cho moi box)
+2. Connect VPN: `sudo openvpn username.ovpn`
+3. Vao web click "Start Machine" -> box spawn -> IP hien thi
+4. VPN route tu dong cap nhat -> user thay box tai 10.100.{slot}.2
+5. nmap, SSH, exploit... giong HTB
+6. Submit flag tren CTFd
+7. "Stop Machine" -> box xoa, route xoa
+
+**Architecture:**
+```
+1 Public IP (VPS)
+  Port 1194 (OpenVPN) <- 40 users share 1 port
+  Port 8080 (CTFd web)
+  
+  User1 VPN (10.200.0.2) -> CCD push route -> Box1 (10.100.1.2)
+  User2 VPN (10.200.0.3) -> CCD push route -> Box2 (10.100.2.2)
+  ...
+  User40 VPN (10.200.0.41) -> CCD push route -> Box40 (10.100.40.2)
+```
+
+**Scripts:**
+- `scripts/setup-vpn-user.sh` - tao cert + .ovpn per user
+- `scripts/update-vpn-route.sh` - cap nhat CCD khi spawn/destroy
+- `scripts/vpn-client-connect.sh` - OpenVPN hook khi client connect
+- `fix-vpn-routing.sh` - cron job fix Docker nft drops
+
+**Da fix:**
+- Docker nftables raw PREROUTING drop rule -> cron job tu dong xoa
+- SSH KexAlgorithms for VPN compatibility (avoid post-quantum large kex)
+- MSS clamping + fragment cho VPN tunnel
+- rp_filter persistent disable
+- Password auth trong entrypoint (chpasswd moi khi start)
+
+### Local Pipeline Test (2026-04-06):
+```
+17/17 PASS - ALL TESTS PASSED
+```
+| Test | Result |
+|------|--------|
+| Login | PASS |
+| Challenge list + detail | PASS |
+| Start Machine (IP=10.100.1.2) | PASS |
+| Docker container (6 services) | PASS |
+| 7 flags injected + matched | PASS |
+| Submit NBL01 correct | PASS |
+| Submit NBL07 root correct | PASS |
+| Cross-flag rejected | PASS |
+| Scoreboard (400pts) | PASS |
+| Reset Machine | PASS |
+| Stop Machine (container removed) | PASS |
+
+### VPS Pipeline Test (2026-04-06):
+- VPN connect: OK (28ms)
+- Ping box qua VPN: OK
+- SSH qua VPN: OK (taylor@10.100.1.2)
+- Multi-user isolation: user slot 1 KHONG thay slot 2
+
 ---
 
 *Tao boi Claude Code - 2026-04-06*
