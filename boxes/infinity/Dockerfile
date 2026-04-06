@@ -9,7 +9,9 @@ RUN apt-get update \
         build-essential \
         gcc \
         libpcap-dev \
+        net-tools \
         nginx \
+        openssh-server \
         php-cli \
         php-zip \
         procps \
@@ -21,6 +23,7 @@ RUN apt-get update \
         sudo \
         supervisor \
     && pip3 install --no-cache-dir pcapy-ng \
+    && mkdir -p /run/sshd \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /root
@@ -30,6 +33,6 @@ COPY . /root/infinity
 RUN chmod +x /root/infinity/docker/bootstrap.sh /root/infinity/docker/entrypoint.sh /root/infinity/docker/reset-state.sh \
     && /root/infinity/docker/bootstrap.sh
 
-EXPOSE 53/tcp 53/udp 80/tcp 7171/tcp 8338/tcp
+EXPOSE 22/tcp 53/tcp 53/udp 80/tcp 7171/tcp 8338/tcp
 
 ENTRYPOINT ["/root/infinity/docker/entrypoint.sh"]

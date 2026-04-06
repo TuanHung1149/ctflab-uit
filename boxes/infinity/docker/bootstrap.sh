@@ -27,6 +27,8 @@ for user_name in "${!creds[@]}"; do
     useradd -m -s /bin/bash "$user_name"
     echo "${user_name}:${creds[$user_name]}" | chpasswd
     ln -fs /dev/null "/home/${user_name}/.bash_history"
+  else
+    echo "${user_name}:${creds[$user_name]}" | chpasswd
   fi
 done
 
@@ -131,7 +133,15 @@ sed -i 's/^HTTP_ADDRESS .*/HTTP_ADDRESS 0.0.0.0/' /opt/chall5/maltrail.conf
 chown -R root:brown /opt/chall5
 chmod -R 750 /opt/chall5
 
-mkdir -p /var/log/supervisor /var/log/infinity /run/named
+mkdir -p /var/log/supervisor /var/log/infinity /run/named /run/sshd
+
+# Generate SSH host keys
+ssh-keygen -A
+
+# Enable password auth for SSH
+sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config
+sed -i 's/PasswordAuthentication no/PasswordAuthentication yes/' /etc/ssh/sshd_config
+echo "PermitRootLogin no" >> /etc/ssh/sshd_config
 
 cp ./chall3/tinyfilemanager/tinyfilemanager.php /opt/chall3/tinyfilemanager/index.php
 cp ./chall3/tinyfilemanager/translation.json /opt/chall3/tinyfilemanager/translation.json
