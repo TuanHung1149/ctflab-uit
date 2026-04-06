@@ -482,9 +482,41 @@ User connect VPN -> Truy cap box qua isolated network
 - Edge cases: duplicate launch blocked, wrong flag rejected, reset works
 - Performance: lag khi 5 boxes dong thoi tren 1 may -> can VPS manh cho production
 
-### ISSUE: Single-Challenge Design (CAN FIX)
-Hien tai 7 flags map vao 1 CTFd challenge -> student chi can 1 flag = full score.
-Can tach thanh 7 CTFd challenges rieng de scoring tung flag.
+### ISSUE: Single-Challenge Design (DA FIX)
+~~Hien tai 7 flags map vao 1 CTFd challenge -> student chi can 1 flag = full score.~~
+**DA FIX**: 7 CTFd challenges rieng, moi challenge co `flag_prefix` rieng:
+
+| Challenge | Category | Points | Flag Prefix |
+|-----------|----------|--------|-------------|
+| Nebula - Network Recon | Network | 100 | NBL01 |
+| Nebula - DNS Enumeration | Network | 100 | NBL02 |
+| Nebula - Web Exploitation | Web | 150 | NBL03 |
+| Nebula - Credential Access | Crypto | 100 | NBL04 |
+| Nebula - Maltrail RCE | Exploit | 200 | NBL05 |
+| Nebula - SUID Privesc | Privesc | 200 | NBL06 |
+| Nebula - Buffer Overflow | Pwn | 300 | NBL07 |
+
+- Tat ca challenges share 1 Docker instance (1 container per user)
+- Moi challenge chi accept flag cua flag_prefix tuong ung
+- Cross-flag validation: submit NBL01 vao challenge 5 -> REJECTED
+- Cross-user validation: submit flag cua user khac -> REJECTED
+
+### Marathon Test (2026-04-06):
+```
+12 rounds x 29 tests = 348 tests
+ALL 348 PASSED - 0 failures
+```
+Tests cover: health, auth, 7-flag scoring, cross-flag validation,
+cross-user isolation, instance sharing, reset, destroy, re-launch,
+scoreboard accuracy (1150pts full / 350pts partial)
+
+### Auto-Expire:
+- Background thread kiem tra moi 60 giay
+- Instance het han tu dong destroy (container + network)
+
+### OpenVPN Cert Generation:
+- openvpn/generate-client.sh: tao cert that tu EasyRSA PKI
+- docker_utils.py: tu dong dung cert that neu PKI co san, fallback template
 
 ### Web Access:
 - Platform: http://localhost:8080 (CTFLab UIT)
