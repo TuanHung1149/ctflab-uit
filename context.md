@@ -442,6 +442,17 @@ User connect VPN -> Truy cap box qua isolated network
 - Frontend: `next build` PASS - 9 pages (8 static + 1 dynamic)
 - Python imports: all models/schemas/auth clean
 
+### THAY DOI QUAN TRONG (2026-04-06 11:22):
+Thay Khoa xac nhan:
+- **"The same HTB"** - platform hoat dong giong Hack The Box
+- **Dung CTFd** lam frontend (user mgmt, challenge, scoreboard, flag submit)
+- **Chi can Docker** provider, khong can VM
+- Phan **infra** (Docker + VPN + network isolation) la phan custom
+
+-> **Kien truc moi**: CTFd + CTFd-Whale plugin (hoac custom plugin) + OpenVPN
+-> Next.js frontend da lam van giu lai de tham khao / backup
+-> Focus chuyen sang: deploy CTFd + tich hop Docker + OpenVPN
+
 ### GitHub: https://github.com/TuanHung1149/ctflab-uit (PRIVATE)
 ### Commits:
 - `12c9ae3` - feat: initial project scaffolding + infinity CTF box
