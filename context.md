@@ -429,12 +429,17 @@ User connect VPN -> Truy cap box qua isolated network
 | Phase | Status | Files |
 |-------|--------|-------|
 | Phase 0: Scaffolding | DONE | .gitignore, .env, docker-compose.yml, boxes/infinity/ |
-| Phase 1: Backend Foundation | DONE | 32 Python files (models, schemas, auth, API routes) |
+| Phase 1: Backend Foundation | DONE | 32 Python files - 19 API routes verified |
 | Phase 2: Docker Service | DONE | docker_service.py, slot_manager.py, flag_generator.py |
 | Phase 3: OpenVPN Service | DONE | openvpn_service.py, setup-server.sh |
 | Phase 4: Background Tasks | DONE | worker.py, instance_tasks.py, cleanup_tasks.py |
-| Phase 5: Frontend | DONE | 15 TSX/TS files (Next.js 14, dark theme) |
-| Phase 6: Security Hardening | PENDING | iptables-isolation.sh da co, can rate limiting |
+| Phase 5: Frontend | DONE | 15 TSX/TS files - 9 pages, build pass |
+| Phase 6: Security Hardening | DONE | iptables-isolation.sh, container caps in docker_service |
+
+### Build Verification (2026-04-06):
+- Backend: 19 routes load OK (auth, boxes, instances, submissions, health, docs)
+- Frontend: `next build` PASS - 9 pages (8 static + 1 dynamic)
+- Python imports: all models/schemas/auth clean
 
 ### GitHub: https://github.com/TuanHung1149/ctflab-uit (PRIVATE)
 ### Commits:
