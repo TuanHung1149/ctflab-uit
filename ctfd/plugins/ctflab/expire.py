@@ -17,6 +17,7 @@ def expire_loop(app):
                 from CTFd.models import db
 
                 from .docker_utils import DockerManager
+                from .host_ops import rebuild_network_isolation, update_vpn_route
                 from .models import LabInstance
 
                 expired = LabInstance.query.filter(
@@ -38,7 +39,19 @@ def expire_loop(app):
                             )
                         except Exception:
                             pass
+                        try:
+                            if inst.user and inst.user.name:
+                                update_vpn_route(inst.user.name, None)
+                        except Exception:
+                            logger.exception(
+                                "Failed to clear VPN route for expired instance %d",
+                                inst.id,
+                            )
                         inst.status = "expired"
+                    try:
+                        rebuild_network_isolation()
+                    except Exception:
+                        logger.exception("Failed to rebuild isolation after expiry pass")
                     db.session.commit()
         except Exception:
             logger.exception("Expire loop error")

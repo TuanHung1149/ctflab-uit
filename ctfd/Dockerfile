@@ -4,7 +4,8 @@ FROM ctfd/ctfd:3.7.1
 USER root
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-        apt-transport-https ca-certificates curl gnupg && \
+        apt-transport-https ca-certificates curl gnupg \
+        iproute2 iptables nftables procps util-linux openssl && \
     install -m 0755 -d /etc/apt/keyrings && \
     curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc && \
     chmod a+r /etc/apt/keyrings/docker.asc && \
