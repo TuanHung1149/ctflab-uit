@@ -122,6 +122,37 @@ def _fix_routing():
         pass
 
 
+def _update_isolation(slot, vpn_ip, action="add"):
+    """Add/remove iptables rules: only this VPN IP can reach this slot's Docker network."""
+    subnet = f"10.100.{slot}.0/24"
+    try:
+        # Ensure chain exists
+        subprocess.run(["iptables", "-N", "CTFLAB_ISOLATION"], capture_output=True)
+        # Ensure chain in FORWARD
+        subprocess.run(["iptables", "-C", "FORWARD", "-j", "CTFLAB_ISOLATION"],
+                       capture_output=True).returncode != 0 and \
+        subprocess.run(["iptables", "-I", "FORWARD", "1", "-j", "CTFLAB_ISOLATION"], capture_output=True)
+        # Ensure default DROP exists
+        subprocess.run(["iptables", "-C", "CTFLAB_ISOLATION", "-s", "10.200.0.0/24", "-d", "10.100.0.0/16", "-j", "DROP"],
+                       capture_output=True).returncode != 0 and \
+        subprocess.run(["iptables", "-A", "CTFLAB_ISOLATION", "-s", "10.200.0.0/24", "-d", "10.100.0.0/16", "-j", "DROP"],
+                       capture_output=True)
+
+        if action == "add":
+            # Allow this VPN IP <-> this Docker subnet
+            subprocess.run(["iptables", "-I", "CTFLAB_ISOLATION", "1",
+                           "-s", vpn_ip, "-d", subnet, "-j", "ACCEPT"], capture_output=True)
+            subprocess.run(["iptables", "-I", "CTFLAB_ISOLATION", "1",
+                           "-s", subnet, "-d", vpn_ip, "-j", "ACCEPT"], capture_output=True)
+        elif action == "remove":
+            subprocess.run(["iptables", "-D", "CTFLAB_ISOLATION",
+                           "-s", vpn_ip, "-d", subnet, "-j", "ACCEPT"], capture_output=True)
+            subprocess.run(["iptables", "-D", "CTFLAB_ISOLATION",
+                           "-s", subnet, "-d", vpn_ip, "-j", "ACCEPT"], capture_output=True)
+    except Exception:
+        pass
+
+
 # ── VPN download (per-user, like HTB) ──────────────────────────────
 
 @ctflab_bp.route("/vpn", methods=["GET"])
@@ -224,6 +255,10 @@ def create_instance():
         # Fix Docker nft rules for VPN routing
         _fix_routing()
 
+        # Add isolation: only this user's VPN IP can reach this slot
+        vpn_ip = f"10.200.0.{slot + 1}"
+        _update_isolation(slot, vpn_ip, "add")
+
         _log_action("start_machine", f"IP={container_ip}, slot={slot}, image={docker_image}")
         db.session.commit()
     except Exception as e:
@@ -286,6 +321,10 @@ def destroy_instance(instance_id):
 
     # Remove VPN route
     _update_vpn_route(user.name, None)
+
+    # Remove isolation rules
+    vpn_ip = f"10.200.0.{instance.slot + 1}"
+    _update_isolation(instance.slot, vpn_ip, "remove")
 
     instance.status = "stopped"
     _log_action("stop_machine", f"slot={instance.slot}")
