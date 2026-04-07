@@ -8,17 +8,20 @@ HTB-style model:
 
 import io
 import json
+import logging
 import os
-import subprocess
+from contextlib import contextmanager
 from datetime import datetime, timedelta
 
 from CTFd.models import db
 from CTFd.utils.decorators import authed_only, admins_only
 from CTFd.utils.user import get_current_user
 from flask import Blueprint, jsonify, request, send_file, render_template
+from sqlalchemy import text
 
 from .docker_utils import DockerManager
 from .flag_utils import generate_flags
+from .host_ops import ensure_user_vpn, rebuild_network_isolation, update_vpn_route
 from .models import CTFLabChallengeModel, LabInstance, ActivityLog
 
 ctflab_bp = Blueprint(
@@ -29,9 +32,11 @@ ctflab_bp = Blueprint(
 )
 
 docker_mgr = DockerManager()
+logger = logging.getLogger(__name__)
 
 MAX_SLOT = 50
 SERVER_IP = os.environ.get("OVPN_SERVER_IP", "152.42.233.178")
+SLOT_LOCK_NAME = "ctflab_slot_allocate"
 
 
 def _log_action(action, detail=None, user_id=None):
@@ -64,6 +69,35 @@ def _find_free_slot():
     return None
 
 
+@contextmanager
+def _slot_lock(timeout=10):
+    """Serialize slot allocation across concurrent requests."""
+    dialect = getattr(db.session.bind, "dialect", None)
+    dialect_name = getattr(dialect, "name", "")
+
+    if dialect_name not in {"mysql", "mariadb"}:
+        yield
+        return
+
+    acquired = db.session.execute(
+        text("SELECT GET_LOCK(:name, :timeout)"),
+        {"name": SLOT_LOCK_NAME, "timeout": timeout},
+    ).scalar()
+    if acquired != 1:
+        raise RuntimeError("Failed to acquire slot allocation lock")
+
+    try:
+        yield
+    finally:
+        try:
+            db.session.execute(
+                text("SELECT RELEASE_LOCK(:name)"),
+                {"name": SLOT_LOCK_NAME},
+            )
+        except Exception:
+            logger.exception("Failed to release slot allocation lock")
+
+
 def _collect_prefixes_for_image(docker_image):
     challenges = CTFLabChallengeModel.query.filter_by(
         docker_image=docker_image
@@ -81,78 +115,6 @@ def _collect_prefixes_for_image(docker_image):
     return prefixes
 
 
-def _update_vpn_route(username, slot=None):
-    """Update OpenVPN CCD to push route for user's active box."""
-    for script in ["/scripts/update-vpn-route.sh", "/opt/ctflab-uit/scripts/update-vpn-route.sh"]:
-        if os.path.isfile(script):
-            try:
-                action = str(slot) if slot else "remove"
-                subprocess.run(["bash", script, username, action], capture_output=True, timeout=10)
-            except Exception:
-                pass
-            return
-
-
-def _ensure_user_vpn(username):
-    """Generate VPN cert + .ovpn for user if not exists."""
-    for ovpn_path in [f"/vpn-configs/{username}.ovpn", f"/opt/ctflab-uit/vpn-configs/{username}.ovpn"]:
-        if os.path.isfile(ovpn_path):
-            return ovpn_path
-    for script in ["/scripts/setup-vpn-user.sh", "/opt/ctflab-uit/scripts/setup-vpn-user.sh"]:
-        if os.path.isfile(script):
-            try:
-                subprocess.run(["bash", script, username, SERVER_IP], capture_output=True, timeout=30)
-            except Exception:
-                pass
-            break
-    for ovpn_path in [f"/vpn-configs/{username}.ovpn", f"/opt/ctflab-uit/vpn-configs/{username}.ovpn"]:
-        if os.path.isfile(ovpn_path):
-            return ovpn_path
-    return None
-
-
-def _fix_routing():
-    """Run fix-vpn-routing.sh to clear Docker nft drops."""
-    try:
-        subprocess.run(
-            ["bash", "/opt/ctflab-uit/fix-vpn-routing.sh"],
-            capture_output=True, timeout=10,
-        )
-    except Exception:
-        pass
-
-
-def _update_isolation(slot, vpn_ip, action="add"):
-    """Add/remove iptables rules: only this VPN IP can reach this slot's Docker network."""
-    subnet = f"10.100.{slot}.0/24"
-    try:
-        # Ensure chain exists
-        subprocess.run(["iptables", "-N", "CTFLAB_ISOLATION"], capture_output=True)
-        # Ensure chain in FORWARD
-        subprocess.run(["iptables", "-C", "FORWARD", "-j", "CTFLAB_ISOLATION"],
-                       capture_output=True).returncode != 0 and \
-        subprocess.run(["iptables", "-I", "FORWARD", "1", "-j", "CTFLAB_ISOLATION"], capture_output=True)
-        # Ensure default DROP exists
-        subprocess.run(["iptables", "-C", "CTFLAB_ISOLATION", "-s", "10.200.0.0/24", "-d", "10.100.0.0/16", "-j", "DROP"],
-                       capture_output=True).returncode != 0 and \
-        subprocess.run(["iptables", "-A", "CTFLAB_ISOLATION", "-s", "10.200.0.0/24", "-d", "10.100.0.0/16", "-j", "DROP"],
-                       capture_output=True)
-
-        if action == "add":
-            # Allow this VPN IP <-> this Docker subnet
-            subprocess.run(["iptables", "-I", "CTFLAB_ISOLATION", "1",
-                           "-s", vpn_ip, "-d", subnet, "-j", "ACCEPT"], capture_output=True)
-            subprocess.run(["iptables", "-I", "CTFLAB_ISOLATION", "1",
-                           "-s", subnet, "-d", vpn_ip, "-j", "ACCEPT"], capture_output=True)
-        elif action == "remove":
-            subprocess.run(["iptables", "-D", "CTFLAB_ISOLATION",
-                           "-s", vpn_ip, "-d", subnet, "-j", "ACCEPT"], capture_output=True)
-            subprocess.run(["iptables", "-D", "CTFLAB_ISOLATION",
-                           "-s", subnet, "-d", vpn_ip, "-j", "ACCEPT"], capture_output=True)
-    except Exception:
-        pass
-
-
 # ── VPN download (per-user, like HTB) ──────────────────────────────
 
 @ctflab_bp.route("/vpn", methods=["GET"])
@@ -160,7 +122,11 @@ def _update_isolation(slot, vpn_ip, action="add"):
 def download_user_vpn():
     """Download the user's .ovpn file (one per user, reusable for all boxes)."""
     user = get_current_user()
-    ovpn_path = _ensure_user_vpn(user.name)
+    try:
+        ovpn_path = ensure_user_vpn(user.name, SERVER_IP)
+    except Exception as e:
+        logger.exception("Failed to provision VPN for %s", user.name)
+        return jsonify({"error": f"VPN config not available: {str(e)}"}), 500
 
     if not ovpn_path or not os.path.isfile(ovpn_path):
         return jsonify({"error": "VPN config not available. Contact admin."}), 500
@@ -183,7 +149,7 @@ def download_user_vpn():
 def create_instance():
     """Spawn a box for the current user (Start Machine)."""
     user = get_current_user()
-    data = request.get_json()
+    data = request.get_json() or {}
     challenge_id = data.get("challenge_id")
 
     challenge = CTFLabChallengeModel.query.filter_by(id=challenge_id).first()
@@ -192,50 +158,52 @@ def create_instance():
 
     docker_image = challenge.docker_image
 
-    # Reuse existing instance for same image
-    existing = (
-        LabInstance.query.filter_by(user_id=user.id, docker_image=docker_image)
-        .filter(LabInstance.status.in_(["starting", "running"]))
-        .first()
-    )
-    if existing:
-        return jsonify({
-            "id": existing.id,
-            "status": existing.status,
-            "container_ip": existing.container_ip,
-            "expires_at": existing.expires_at.isoformat() if existing.expires_at else None,
-        })
-
-    # Check no other active instance (1 instance at a time, like HTB)
-    any_active = (
-        LabInstance.query.filter_by(user_id=user.id)
-        .filter(LabInstance.status.in_(["starting", "running"]))
-        .first()
-    )
-    if any_active:
-        return jsonify({
-            "error": "You already have a running instance. Stop it first."
-        }), 409
-
-    slot = _find_free_slot()
-    if slot is None:
-        return jsonify({"error": "No slots available. Try again later."}), 503
-
     env_data = json.loads(challenge.box_env_json) if challenge.box_env_json else {}
     prefixes = _collect_prefixes_for_image(docker_image)
     flags = generate_flags(prefixes)
-
     timeout_seconds = challenge.instance_timeout or 14400
-    instance = LabInstance(
-        user_id=user.id,
-        docker_image=docker_image,
-        slot=slot,
-        status="starting",
-        flags_json=json.dumps(flags),
-        expires_at=datetime.utcnow() + timedelta(seconds=timeout_seconds),
-    )
-    db.session.add(instance)
-    db.session.commit()
+
+    with _slot_lock():
+        existing = (
+            LabInstance.query.filter_by(user_id=user.id, docker_image=docker_image)
+            .filter(LabInstance.status.in_(["starting", "running"]))
+            .first()
+        )
+        if existing:
+            return jsonify({
+                "id": existing.id,
+                "status": existing.status,
+                "container_ip": existing.container_ip,
+                "expires_at": existing.expires_at.isoformat() if existing.expires_at else None,
+            })
+
+        any_active = (
+            LabInstance.query.filter_by(user_id=user.id)
+            .filter(LabInstance.status.in_(["starting", "running"]))
+            .first()
+        )
+        if any_active:
+            return jsonify({
+                "error": "You already have a running instance. Stop it first."
+            }), 409
+
+        slot = _find_free_slot()
+        if slot is None:
+            return jsonify({"error": "No slots available. Try again later."}), 503
+
+        instance = LabInstance(
+            user_id=user.id,
+            docker_image=docker_image,
+            slot=slot,
+            status="starting",
+            flags_json=json.dumps(flags),
+            expires_at=datetime.utcnow() + timedelta(seconds=timeout_seconds),
+        )
+        db.session.add(instance)
+        db.session.commit()
+
+    container_id = None
+    network_id = None
 
     try:
         container_id, network_id, container_ip = docker_mgr.create_instance(
@@ -246,22 +214,24 @@ def create_instance():
         instance.container_ip = container_ip
         instance.status = "running"
 
-        # Ensure user has VPN cert
-        _ensure_user_vpn(user.name)
-
-        # Update VPN route to push this slot to user
-        _update_vpn_route(user.name, slot)
-
-        # Fix Docker nft rules for VPN routing
-        _fix_routing()
-
-        # Add isolation: only this user's VPN IP can reach this slot
-        vpn_ip = f"10.200.0.{slot + 1}"
-        _update_isolation(slot, vpn_ip, "add")
+        ensure_user_vpn(user.name, SERVER_IP)
+        update_vpn_route(user.name, slot)
+        rebuild_network_isolation()
 
         _log_action("start_machine", f"IP={container_ip}, slot={slot}, image={docker_image}")
         db.session.commit()
     except Exception as e:
+        logger.exception("Failed to create instance for user %s", user.name)
+        try:
+            update_vpn_route(user.name, None)
+            rebuild_network_isolation()
+        except Exception:
+            logger.exception("Failed to roll back VPN/firewall state for %s", user.name)
+        if container_id and network_id:
+            try:
+                docker_mgr.destroy_instance(container_id, network_id)
+            except Exception:
+                logger.exception("Failed to clean up partial instance for slot %s", instance.slot)
         instance.status = "error"
         db.session.commit()
         return jsonify({"error": f"Failed to start: {str(e)}"}), 500
@@ -319,12 +289,11 @@ def destroy_instance(instance_id):
     except Exception:
         pass
 
-    # Remove VPN route
-    _update_vpn_route(user.name, None)
-
-    # Remove isolation rules
-    vpn_ip = f"10.200.0.{instance.slot + 1}"
-    _update_isolation(instance.slot, vpn_ip, "remove")
+    try:
+        update_vpn_route(user.name, None)
+        rebuild_network_isolation()
+    except Exception:
+        logger.exception("Failed to refresh VPN/firewall state while stopping slot %s", instance.slot)
 
     instance.status = "stopped"
     _log_action("stop_machine", f"slot={instance.slot}")

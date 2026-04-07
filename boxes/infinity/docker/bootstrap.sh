@@ -4,9 +4,17 @@ set -euo pipefail
 
 cd /root/infinity
 
-set -a
-. ./.env
-set +a
+if [ -f ./.env ]; then
+  set -a
+  . ./.env
+  set +a
+fi
+
+: "${BOX_TITLE:=Nebula Nexus}"
+: "${BASE_DOMAIN:=nebula.lab}"
+: "${TXT_SUBDOMAIN:=unk}"
+: "${FILE_SUBDOMAIN:=inffile123}"
+export BOX_TITLE BASE_DOMAIN TXT_SUBDOMAIN FILE_SUBDOMAIN
 
 mapfile -t flags < flags.txt
 
@@ -38,6 +46,7 @@ usermod -c 'Information Asset Manager' john
 
 mkdir -p /opt
 cp -r ./chall1 /opt/chall1
+cp -r ./chall3 /opt/chall3
 cp -r ./chall5 /opt/chall5
 cp -r ./chall7 /opt/chall7
 mkdir -p /opt/chall3/tinyfilemanager/data

@@ -42,11 +42,10 @@ fi
 
 # Setup OpenVPN server
 echo "[4/6] Setting up OpenVPN server..."
-if [ ! -d "/etc/openvpn/easy-rsa/pki" ]; then
-    bash openvpn/setup-server.sh
-else
-    echo "  OpenVPN PKI already exists, skipping setup"
-fi
+bash openvpn/setup-server.sh
+
+# Ensure runtime directories exist
+mkdir -p vpn-configs
 
 # Build the infinity box Docker image
 echo "[5/6] Building infinity box Docker image..."
@@ -61,7 +60,7 @@ echo "============================================"
 echo "  Deployment Complete!"
 echo "============================================"
 echo ""
-echo "  CTFd Web UI:    http://$(hostname -I | awk '{print $1}'):8000"
+echo "  CTFd Web UI:    http://$(hostname -I | awk '{print $1}'):8080"
 echo "  OpenVPN Port:   1194/udp"
 echo ""
 echo "  Next steps:"
