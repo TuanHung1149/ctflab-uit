@@ -1,0 +1,30 @@
+{% extends "challenge.html" %}
+
+{% block description %}
+{{ challenge.html }}
+
+<input type="hidden" id="ctflab-docker-image" value="{{ challenge.docker_image }}">
+
+<div class="card mt-3 mb-3" style="border: 1px solid #28a745; background: #1a1a2e;">
+  <div class="card-header" style="background: #0d1117; color: #0ff; border-bottom: 1px solid #28a745;">
+    <i class="fas fa-server"></i> <strong>Lab Instance</strong>
+  </div>
+  <div class="card-body" id="instance-panel">
+    <div id="instance-status">
+      <p class="text-muted"><i class="fas fa-spinner fa-spin"></i> Loading...</p>
+    </div>
+    <div id="instance-actions" class="mt-2" style="display:none;"></div>
+    <div id="instance-guide" class="mt-3" style="display:none;">
+      <hr style="border-color: #333;">
+      <h6 style="color: #0ff;"><i class="fas fa-book"></i> How to connect:</h6>
+      <ol style="color: #ccc; font-size: 0.9em;">
+        <li>Download your VPN config: <a href="/api/ctflab/vpn" id="vpn-download-link" class="btn btn-sm btn-info" target="_blank"><i class="fas fa-download"></i> Download .ovpn</a></li>
+        <li>Connect VPN: <code>sudo openvpn your-username.ovpn</code></li>
+        <li>Wait for <code>Initialization Sequence Completed</code></li>
+        <li>SSH into box: <code id="ssh-command">ssh taylor@10.100.x.2</code></li>
+        <li>Password: <code>lekkerding</code></li>
+      </ol>
+    </div>
+  </div>
+</div>
+{% endblock %}
