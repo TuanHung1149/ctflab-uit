@@ -109,5 +109,5 @@ def rebuild_network_isolation() -> None:
     if not os.path.isfile(script):
         raise RuntimeError("fix-vpn-routing.sh not found")
 
-    _run(["bash", script], timeout=30, use_host_netns=True)
+    _run(["bash", script], timeout=30, use_host_netns=False)
 
