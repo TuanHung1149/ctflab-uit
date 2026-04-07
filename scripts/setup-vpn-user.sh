@@ -2,7 +2,7 @@
 set -euo pipefail
 
 USERNAME="${1:?Usage: setup-vpn-user.sh <username> <server_ip>}"
-SERVER_IP="${2:-$(hostname -I | awk '{print $1}')}"
+SERVER_IP="${2:-152.42.233.178}"
 EASYRSA_DIR="/etc/openvpn/easy-rsa"
 PKI_DIR="${EASYRSA_DIR}/pki"
 CCD_DIR="/etc/openvpn/ccd"
