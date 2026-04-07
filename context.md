@@ -249,3 +249,31 @@ Flags: all different  Client-to-client: BLOCKED
 ---
 
 *Cap nhat: 2026-04-07 | Tao boi Claude Code*
+
+---
+
+## 11. KNOWN ISSUES & NEXT STEPS (2026-04-08)
+
+### OpenVPN + WSL2 Bug:
+- OpenVPN 2.7_rc2 tren WSL2: `write to TUN/TAP: fd=-1` (tun device broken)
+- Khong fix duoc tu server side - do la bug cua OpenVPN RC + WSL2 kernel
+- Native Linux / Kali VM / Windows OpenVPN GUI: hoat dong binh thuong
+
+### Giai phap de xuat: CHUYEN SANG WIREGUARD
+- WireGuard hoat dong tren WSL2 + Windows + Linux + Mac
+- Config don gian hon OpenVPN (1 file, khong can PKI/CA)
+- Performance tot hon
+- HTB cung dang chuyen sang WireGuard
+- Can implement: wg genkey, wg set, per-user peer config
+
+### Fallback da cai: Web Terminal (ttyd)
+- ttyd da cai tren VPS
+- Script: /opt/ctflab-uit/scripts/start-web-terminal.sh <slot>
+- Students mo browser: http://VPS:700X -> SSH terminal trong browser
+- Firewall: ports 7001-7050 da open
+
+### TODO cho session moi:
+1. Implement WireGuard thay OpenVPN
+2. Update CTFd plugin de generate WireGuard config
+3. Test tren WSL2 + Linux + Windows
+4. Update context.md
