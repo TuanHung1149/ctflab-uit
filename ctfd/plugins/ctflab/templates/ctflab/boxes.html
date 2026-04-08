@@ -1,29 +1,137 @@
 {% extends "admin/base.html" %}
 
 {% block content %}
-<div class="container">
-  <h2>CTFLab - Challenge Boxes</h2>
-  <table class="table table-striped">
-    <thead>
-      <tr>
-        <th>Slug</th>
-        <th>Title</th>
-        <th>Version</th>
-        <th>Challenges</th>
-        <th>Description</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for box in boxes %}
-      <tr>
-        <td>{{ box.slug }}</td>
-        <td>{{ box.title }}</td>
-        <td>{{ box.get("version", "-") }}</td>
-        <td>{{ box.get("challenges", []) | length }}</td>
-        <td>{{ box.get("description", "") }}</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+<style>
+  .guide-card { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 20px; margin-bottom: 16px; }
+  .guide-card h4 { color: #58a6ff; margin-bottom: 12px; }
+  .guide-card code { background: #0d1117; padding: 2px 6px; border-radius: 3px; color: #7ee787; }
+  .step { display: flex; gap: 12px; margin-bottom: 16px; }
+  .step-num { background: #238636; color: #fff; border-radius: 50%; min-width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 14px; flex-shrink: 0; }
+  .step-content { flex: 1; }
+  .step-content p { margin: 4px 0; color: #c9d1d9; }
+  .tbl { width: 100%; border-collapse: collapse; margin: 8px 0; }
+  .tbl th { background: #0d1117; color: #58a6ff; padding: 8px; text-align: left; border: 1px solid #30363d; }
+  .tbl td { padding: 8px; border: 1px solid #30363d; color: #c9d1d9; }
+  .btn-act { color: #fff; border: none; border-radius: 6px; padding: 10px 24px; font-size: 14px; cursor: pointer; margin: 4px; text-decoration: none; display: inline-block; }
+  .btn-green { background: #238636; } .btn-green:hover { background: #2ea043; color:#fff; }
+  .btn-blue { background: #0d6efd; } .btn-blue:hover { background: #0b5ed7; color:#fff; }
+  .btn-gray { background: #6c757d; } .btn-gray:hover { background: #5c636a; color:#fff; }
+</style>
+
+<div class="container-fluid">
+  <h1 class="mt-3"><i class="fas fa-plus-circle"></i> Challenge Manager</h1>
+
+  <div class="mt-3 mb-4">
+    <a href="/admin/challenges/new" class="btn-act btn-green"><i class="fas fa-plus"></i> Create via CTFd Form</a>
+    <a href="/api/ctflab/admin/dashboard" class="btn-act btn-blue"><i class="fas fa-tachometer-alt"></i> Dashboard</a>
+    <a href="/admin/challenges" class="btn-act btn-gray"><i class="fas fa-list"></i> All Challenges</a>
+  </div>
+
+  <!-- Quick Create -->
+  <div class="guide-card">
+    <h4><i class="fas fa-bolt"></i> Quick Create Challenge</h4>
+    <form id="qc-form">
+      <div class="row">
+        <div class="col-md-3"><label style="color:#c9d1d9">Name</label><input type="text" class="form-control" id="qc-name" placeholder="SQL Injection Lab" required></div>
+        <div class="col-md-2"><label style="color:#c9d1d9">Category</label><input type="text" class="form-control" id="qc-cat" placeholder="Web" required></div>
+        <div class="col-md-1"><label style="color:#c9d1d9">Points</label><input type="number" class="form-control" id="qc-val" placeholder="150" required></div>
+        <div class="col-md-3"><label style="color:#c9d1d9">Docker Image</label><input type="text" class="form-control" id="qc-img" placeholder="ctflab/infinity" required></div>
+        <div class="col-md-2"><label style="color:#c9d1d9">Flag Prefix</label><input type="text" class="form-control" id="qc-pfx" placeholder="FLAG01" required></div>
+      </div>
+      <div class="row mt-2">
+        <div class="col-md-12"><label style="color:#c9d1d9">Description</label><textarea class="form-control" id="qc-desc" rows="2" placeholder="Find the vulnerability and get the flag..."></textarea></div>
+      </div>
+      <div class="mt-3"><button type="submit" class="btn-act btn-green"><i class="fas fa-plus"></i> Create</button><span id="qc-st" class="ml-3" style="color:#8b949e"></span></div>
+    </form>
+  </div>
+
+  <!-- Tutorial -->
+  <div class="guide-card">
+    <h4><i class="fas fa-book"></i> Hướng dẫn</h4>
+
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-content">
+        <p><b>Tạo challenge:</b> Dùng Quick Create ở trên, hoặc vào <a href="/admin/challenges/new" style="color:#58a6ff">CTFd → Create Challenge</a> → chọn type <code>ctflab</code></p>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-content">
+        <p><b>Docker Image:</b> Mỗi challenge cần 1 Docker image đã build trên VPS</p>
+        <table class="tbl">
+          <tr><th>Scenario</th><th>Docker Image</th><th>Kết quả</th></tr>
+          <tr><td>Bài riêng lẻ</td><td>Mỗi bài image khác nhau</td><td>Mỗi bài 1 box riêng</td></tr>
+          <tr><td>Nhiều bài chung 1 machine</td><td>Cùng image, khác Flag Prefix</td><td>Player start 1 lần, dùng cho nhiều bài</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-content">
+        <p><b>Flag Prefix:</b> Hệ thống tự tạo flag random dạng <code>PREFIX{random}</code>. Ví dụ prefix <code>SQLI01</code> → flag <code>SQLI01{x7KmPq9rT2...}</code></p>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">4</div>
+      <div class="step-content">
+        <p><b>Prerequisites (chuỗi bài):</b> Vào <a href="/admin/challenges" style="color:#58a6ff">Admin → Challenges</a> → click bài → tab <b>Requirements</b> → chọn bài prerequisite</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Existing images -->
+  <div class="guide-card">
+    <h4><i class="fas fa-docker"></i> Docker Images có sẵn</h4>
+    <table class="tbl" id="images-table">
+      <thead><tr><th>Image</th><th>Challenges dùng</th></tr></thead>
+      <tbody><tr><td colspan="2" style="color:#6e7681">Loading...</td></tr></tbody>
+    </table>
+  </div>
 </div>
+
+<script>
+document.getElementById('qc-form').addEventListener('submit', function(e) {
+  e.preventDefault();
+  var st = document.getElementById('qc-st');
+  st.textContent = 'Creating...'; st.style.color = '#d29922';
+  fetch('/api/v1/challenges', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', 'CSRF-Token': init.csrfNonce},
+    body: JSON.stringify({
+      name: document.getElementById('qc-name').value,
+      category: document.getElementById('qc-cat').value,
+      value: parseInt(document.getElementById('qc-val').value),
+      docker_image: document.getElementById('qc-img').value,
+      flag_prefix: document.getElementById('qc-pfx').value,
+      description: document.getElementById('qc-desc').value || document.getElementById('qc-name').value,
+      type: 'ctflab', state: 'visible', instance_timeout: 14400, box_env_json: '{}'
+    })
+  }).then(function(r){return r.json()}).then(function(d) {
+    if (d.success) { st.textContent = 'Created! ID=' + d.data.id; st.style.color = '#7ee787'; document.getElementById('qc-form').reset(); loadImages(); }
+    else { st.textContent = 'Error: ' + JSON.stringify(d.errors||d.message); st.style.color = '#f85149'; }
+  });
+});
+
+function loadImages() {
+  fetch('/api/v1/challenges').then(function(r){return r.json()}).then(function(d) {
+    var map = {};
+    (d.data||[]).forEach(function(c) {
+      var img = c.docker_image || 'unknown';
+      if (!map[img]) map[img] = [];
+      map[img].push(c.name + ' (' + c.value + 'pts)');
+    });
+    var tb = document.getElementById('images-table').querySelector('tbody');
+    tb.innerHTML = '';
+    Object.keys(map).forEach(function(img) {
+      tb.innerHTML += '<tr><td><code>' + img + '</code></td><td>' + map[img].join(', ') + '</td></tr>';
+    });
+    if (!Object.keys(map).length) tb.innerHTML = '<tr><td colspan=2 style="color:#6e7681">No challenges yet</td></tr>';
+  });
+}
+loadImages();
+</script>
 {% endblock %}

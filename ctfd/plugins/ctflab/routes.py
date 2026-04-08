@@ -525,3 +525,10 @@ def admin_bash_history(slot):
 def admin_dashboard():
     """Admin: web dashboard page."""
     return render_template("ctflab/admin.html")
+
+
+@ctflab_bp.route("/admin/challenges", methods=["GET"])
+@admins_only
+def admin_challenge_manager():
+    """Admin: challenge manager with quick create and tutorial."""
+    return render_template("ctflab/boxes.html")
