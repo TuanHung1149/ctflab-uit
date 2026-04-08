@@ -1,94 +1,112 @@
 {% extends "admin/base.html" %}
 
 {% block content %}
-<div class="container-fluid">
-  <h1 class="mt-3"><i class="fas fa-server"></i> CTFLab Admin</h1>
+<style>
+  .ctflab-tabs { display: flex; gap: 0; border-bottom: 2px solid #30363d; margin-bottom: 16px; }
+  .ctflab-tab { padding: 10px 20px; cursor: pointer; color: #8b949e; border: none; background: none; font-size: 14px; font-weight: 500; border-bottom: 2px solid transparent; margin-bottom: -2px; }
+  .ctflab-tab:hover { color: #e6edf3; }
+  .ctflab-tab.active { color: #58a6ff; border-bottom-color: #58a6ff; }
+  .ctflab-pane { display: none; }
+  .ctflab-pane.active { display: block; }
+  .stat-card { text-align: center; padding: 16px; border-radius: 8px; color: #fff; }
+  .stat-card h3 { margin: 0; font-size: 28px; }
+  .stat-card small { opacity: 0.85; }
+  .terminal-pre { background: #0d1117; color: #c9d1d9; padding: 16px; border-radius: 8px; max-height: 600px; overflow-y: auto; font-size: 13px; font-family: 'Cascadia Code', Consolas, monospace; border: 1px solid #30363d; white-space: pre-wrap; word-break: break-all; }
+</style>
 
-  <!-- Stats Cards -->
-  <div class="row mt-3" id="stats-row">
-    <div class="col-md-2"><div class="card bg-primary text-white text-center p-3"><h3 id="stat-active">-</h3><small>Active Instances</small></div></div>
-    <div class="col-md-2"><div class="card bg-success text-white text-center p-3"><h3 id="stat-users">-</h3><small>Total Users</small></div></div>
-    <div class="col-md-2"><div class="card bg-info text-white text-center p-3"><h3 id="stat-solves">-</h3><small>Total Solves</small></div></div>
-    <div class="col-md-2"><div class="card bg-warning text-dark text-center p-3"><h3 id="stat-fails">-</h3><small>Total Fails</small></div></div>
-    <div class="col-md-2"><div class="card bg-danger text-white text-center p-3"><h3 id="stat-suspicious">-</h3><small>Suspicious</small></div></div>
-    <div class="col-md-2"><div class="card bg-secondary text-white text-center p-3"><h3 id="stat-total">-</h3><small>Total Instances</small></div></div>
+<div class="container-fluid">
+  <h1 class="mt-3"><i class="fas fa-server"></i> CTFLab Admin Dashboard</h1>
+
+  <!-- Stats -->
+  <div class="row mt-3">
+    <div class="col-md-2"><div class="stat-card" style="background:#0d6efd"><h3 id="stat-active">-</h3><small>Active Boxes</small></div></div>
+    <div class="col-md-2"><div class="stat-card" style="background:#198754"><h3 id="stat-users">-</h3><small>Users</small></div></div>
+    <div class="col-md-2"><div class="stat-card" style="background:#0dcaf0"><h3 id="stat-solves">-</h3><small>Solves</small></div></div>
+    <div class="col-md-2"><div class="stat-card" style="background:#ffc107;color:#000"><h3 id="stat-fails">-</h3><small>Fails</small></div></div>
+    <div class="col-md-2"><div class="stat-card" style="background:#dc3545"><h3 id="stat-suspicious">-</h3><small>Suspicious</small></div></div>
+    <div class="col-md-2"><div class="stat-card" style="background:#6c757d"><h3 id="stat-total">-</h3><small>Total Instances</small></div></div>
   </div>
 
-  <!-- Tabs -->
-  <ul class="nav nav-tabs mt-4" role="tablist">
-    <li class="nav-item"><a class="nav-link active" data-toggle="tab" href="#tab-instances">Active Instances</a></li>
-    <li class="nav-item"><a class="nav-link" data-toggle="tab" href="#tab-logs">Activity Logs</a></li>
-    <li class="nav-item"><a class="nav-link" data-toggle="tab" href="#tab-suspicious">Suspicious Flags</a></li>
-    <li class="nav-item"><a class="nav-link" data-toggle="tab" href="#tab-bash-history"><i class="fas fa-terminal"></i> Bash History</a></li>
-    <li class="nav-item"><a class="nav-link" data-toggle="tab" href="#tab-container-logs">Container Logs</a></li>
-  </ul>
+  <!-- Tabs (vanilla JS, no Bootstrap dependency) -->
+  <div class="ctflab-tabs mt-4">
+    <button class="ctflab-tab active" onclick="switchTab('instances')"><i class="fas fa-server"></i> Active Instances</button>
+    <button class="ctflab-tab" onclick="switchTab('logs')"><i class="fas fa-list"></i> Activity Logs</button>
+    <button class="ctflab-tab" onclick="switchTab('suspicious')"><i class="fas fa-exclamation-triangle"></i> Suspicious Flags</button>
+    <button class="ctflab-tab" onclick="switchTab('history')"><i class="fas fa-terminal"></i> Bash History</button>
+    <button class="ctflab-tab" onclick="switchTab('container')"><i class="fas fa-file-alt"></i> Container Logs</button>
+  </div>
 
-  <div class="tab-content mt-3">
-    <!-- Active Instances -->
-    <div class="tab-pane fade show active" id="tab-instances">
-      <table class="table table-striped table-sm">
-        <thead><tr><th>ID</th><th>User</th><th>Image</th><th>Slot</th><th>IP</th><th>Status</th><th>Created</th><th>Expires</th></tr></thead>
-        <tbody id="instances-table"></tbody>
-      </table>
-    </div>
+  <!-- Tab: Active Instances -->
+  <div class="ctflab-pane active" id="pane-instances">
+    <table class="table table-striped table-sm">
+      <thead><tr><th>ID</th><th>User</th><th>Image</th><th>Slot</th><th>IP</th><th>Status</th><th>Created</th><th>Expires</th></tr></thead>
+      <tbody id="instances-table"></tbody>
+    </table>
+  </div>
 
-    <!-- Activity Logs -->
-    <div class="tab-pane fade" id="tab-logs">
-      <div class="mb-2">
-        <select id="log-filter" class="form-control form-control-sm d-inline-block" style="width:200px;">
-          <option value="">All Actions</option>
-          <option value="vpn_download">VPN Download</option>
-          <option value="start_machine">Start Machine</option>
-          <option value="stop_machine">Stop Machine</option>
-          <option value="reset_machine">Reset Machine</option>
-        </select>
-        <button class="btn btn-sm btn-primary" onclick="loadLogs()">Filter</button>
-      </div>
-      <table class="table table-striped table-sm">
-        <thead><tr><th>Time</th><th>User</th><th>Action</th><th>Detail</th><th>IP</th></tr></thead>
-        <tbody id="logs-table"></tbody>
-      </table>
+  <!-- Tab: Activity Logs -->
+  <div class="ctflab-pane" id="pane-logs">
+    <div class="mb-2">
+      <select id="log-filter" class="form-control form-control-sm d-inline-block" style="width:200px;">
+        <option value="">All Actions</option>
+        <option value="vpn_download">VPN Download</option>
+        <option value="start_machine">Start Machine</option>
+        <option value="stop_machine">Stop Machine</option>
+        <option value="reset_machine">Reset Machine</option>
+      </select>
+      <button class="btn btn-sm btn-primary" onclick="loadLogs()">Filter</button>
     </div>
+    <table class="table table-striped table-sm">
+      <thead><tr><th>Time</th><th>User</th><th>Action</th><th>Detail</th><th>IP</th></tr></thead>
+      <tbody id="logs-table"></tbody>
+    </table>
+  </div>
 
-    <!-- Suspicious -->
-    <div class="tab-pane fade" id="tab-suspicious">
-      <table class="table table-danger table-sm">
-        <thead><tr><th>Time</th><th>User</th><th>Submitted Flag</th><th>Flag Owner</th><th>Instance</th></tr></thead>
-        <tbody id="suspicious-table"></tbody>
-      </table>
-    </div>
+  <!-- Tab: Suspicious Flags -->
+  <div class="ctflab-pane" id="pane-suspicious">
+    <p class="text-muted mb-2"><i class="fas fa-info-circle"></i> Players who submitted another player's flag are shown here.</p>
+    <table class="table table-sm" style="border-left: 3px solid #dc3545;">
+      <thead style="background:#2d1215;color:#f85149;"><tr><th>Time</th><th>Cheater</th><th>Submitted Flag</th><th>Flag Belongs To</th><th>Instance</th></tr></thead>
+      <tbody id="suspicious-table"></tbody>
+    </table>
+  </div>
 
-    <!-- Bash History -->
-    <div class="tab-pane fade" id="tab-bash-history">
-      <div class="mb-2">
-        <select id="history-select" class="form-control form-control-sm d-inline-block" style="width:300px;"></select>
-        <button class="btn btn-sm btn-primary" onclick="loadBashHistory()"><i class="fas fa-terminal"></i> Load History</button>
-        <button class="btn btn-sm btn-outline-secondary" onclick="loadBashHistory()"><i class="fas fa-sync"></i> Refresh</button>
-        <span class="ml-2 text-muted" id="history-status"></span>
-      </div>
-      <pre id="bash-history-output" style="background:#0d1117; color:#c9d1d9; padding:15px; border-radius:8px; max-height:600px; overflow-y:auto; font-size:0.85em; font-family:'Cascadia Code',Consolas,monospace; border:1px solid #30363d;"><span style="color:#6e7681">Select a box and click "Load History" to view player commands.</span></pre>
+  <!-- Tab: Bash History -->
+  <div class="ctflab-pane" id="pane-history">
+    <div class="mb-2">
+      <select id="history-select" class="form-control form-control-sm d-inline-block" style="width:300px;"></select>
+      <button class="btn btn-sm btn-primary" onclick="loadBashHistory()"><i class="fas fa-terminal"></i> Load</button>
+      <button class="btn btn-sm btn-outline-secondary" onclick="loadBashHistory()"><i class="fas fa-sync"></i> Refresh</button>
+      <span class="ml-2 text-muted" id="history-status"></span>
     </div>
+    <pre class="terminal-pre" id="bash-history-output"><span style="color:#6e7681">Select a box and click "Load" to view player commands.</span></pre>
+  </div>
 
-    <!-- Container Logs -->
-    <div class="tab-pane fade" id="tab-container-logs">
-      <div class="mb-2">
-        <select id="container-select" class="form-control form-control-sm d-inline-block" style="width:300px;"></select>
-        <button class="btn btn-sm btn-primary" onclick="loadContainerLogs()">Load Logs</button>
-        <span class="ml-2 text-muted" id="container-log-status"></span>
-      </div>
-      <pre id="container-log-output" style="background:#0d1117; color:#7ee787; padding:15px; border-radius:8px; max-height:600px; overflow-y:auto; font-size:0.85em; font-family:'Cascadia Code',Consolas,monospace; border:1px solid #30363d;"></pre>
+  <!-- Tab: Container Logs -->
+  <div class="ctflab-pane" id="pane-container">
+    <div class="mb-2">
+      <select id="container-select" class="form-control form-control-sm d-inline-block" style="width:300px;"></select>
+      <button class="btn btn-sm btn-primary" onclick="loadContainerLogs()"><i class="fas fa-file-alt"></i> Load</button>
+      <span class="ml-2 text-muted" id="container-log-status"></span>
     </div>
+    <pre class="terminal-pre" id="container-log-output" style="color:#7ee787;"></pre>
   </div>
 </div>
 
 <script>
 var API = "/api/ctflab/admin";
 
-function escapeHtml(text) {
-  var d = document.createElement('div');
-  d.textContent = text;
-  return d.innerHTML;
+function switchTab(name) {
+  document.querySelectorAll('.ctflab-tab').forEach(function(t) { t.classList.remove('active'); });
+  document.querySelectorAll('.ctflab-pane').forEach(function(p) { p.classList.remove('active'); });
+  document.getElementById('pane-' + name).classList.add('active');
+  event.target.closest('.ctflab-tab').classList.add('active');
+  if (name === 'suspicious') loadSuspicious();
+  if (name === 'logs') loadLogs();
 }
+
+function escapeHtml(t) { var d = document.createElement('div'); d.textContent = t; return d.innerHTML; }
+function ts(s) { return s ? s.slice(0,19).replace('T',' ') : '-'; }
 
 function loadStats() {
   fetch(API + "/stats").then(function(r){return r.json()}).then(function(d) {
@@ -106,104 +124,58 @@ function loadInstances() {
     var tb = document.getElementById("instances-table");
     tb.innerHTML = "";
     (d.instances || []).forEach(function(i) {
-      tb.innerHTML += "<tr>" +
-        "<td>" + i.id + "</td>" +
-        "<td><b>" + i.username + "</b></td>" +
-        "<td><code>" + i.docker_image + "</code></td>" +
-        "<td>" + i.slot + "</td>" +
-        "<td><code style='color:#28a745'>" + (i.container_ip||"-") + "</code></td>" +
-        "<td><span class='badge badge-success'>" + i.status + "</span></td>" +
-        "<td>" + (i.created_at||"").slice(0,19).replace("T"," ") + "</td>" +
-        "<td>" + (i.expires_at||"").slice(0,19).replace("T"," ") + "</td>" +
-        "</tr>";
+      tb.innerHTML += "<tr><td>" + i.id + "</td><td><b>" + i.username + "</b></td><td><code>" + i.docker_image + "</code></td><td>" + i.slot + "</td><td><code style='color:#28a745;font-weight:bold'>" + (i.container_ip||"-") + "</code></td><td><span class='badge badge-success'>" + i.status + "</span></td><td>" + ts(i.created_at) + "</td><td>" + ts(i.expires_at) + "</td></tr>";
     });
-    if (!d.instances || d.instances.length === 0) {
-      tb.innerHTML = "<tr><td colspan=8 class='text-muted text-center'>No active instances</td></tr>";
-    }
-
-    // Populate selects
+    if (!d.instances || !d.instances.length) tb.innerHTML = "<tr><td colspan=8 class='text-muted text-center'>No active instances</td></tr>";
     var sel1 = document.getElementById("container-select");
     var sel2 = document.getElementById("history-select");
-    sel1.innerHTML = "<option value=''>Select container...</option>";
-    sel2.innerHTML = "<option value=''>Select box...</option>";
+    sel1.innerHTML = "<option value=''>Select...</option>";
+    sel2.innerHTML = "<option value=''>Select...</option>";
     (d.instances || []).forEach(function(i) {
-      var opt = "<option value='" + i.slot + "'>" + i.username + " — slot " + i.slot + " (" + (i.container_ip||"?") + ")</option>";
-      sel1.innerHTML += opt;
-      sel2.innerHTML += opt;
+      var o = "<option value='" + i.slot + "'>" + i.username + " — slot " + i.slot + " (" + (i.container_ip||"?") + ")</option>";
+      sel1.innerHTML += o; sel2.innerHTML += o;
     });
   });
 }
 
 function loadLogs() {
-  var filter = document.getElementById("log-filter").value;
-  var url = API + "/logs" + (filter ? "?action=" + filter : "");
-  fetch(url).then(function(r){return r.json()}).then(function(d) {
-    var tb = document.getElementById("logs-table");
-    tb.innerHTML = "";
+  var f = document.getElementById("log-filter").value;
+  fetch(API + "/logs" + (f ? "?action=" + f : "")).then(function(r){return r.json()}).then(function(d) {
+    var tb = document.getElementById("logs-table"); tb.innerHTML = "";
     (d.logs || []).forEach(function(l) {
-      var cls = {"start_machine":"success","stop_machine":"danger","reset_machine":"warning","vpn_download":"info"}[l.action] || "secondary";
-      tb.innerHTML += "<tr>" +
-        "<td>" + (l.created_at||"").slice(0,19).replace("T"," ") + "</td>" +
-        "<td><b>" + (l.username||"?") + "</b></td>" +
-        "<td><span class='badge badge-" + cls + "'>" + l.action + "</span></td>" +
-        "<td>" + (l.detail||"-") + "</td>" +
-        "<td><code>" + (l.ip_address||"-") + "</code></td>" +
-        "</tr>";
+      var c = {"start_machine":"success","stop_machine":"danger","reset_machine":"warning","vpn_download":"info"}[l.action] || "secondary";
+      tb.innerHTML += "<tr><td>" + ts(l.created_at) + "</td><td><b>" + (l.username||"?") + "</b></td><td><span class='badge badge-" + c + "'>" + l.action + "</span></td><td>" + (l.detail||"-") + "</td><td><code>" + (l.ip_address||"-") + "</code></td></tr>";
     });
   });
 }
 
 function loadSuspicious() {
   fetch(API + "/suspicious").then(function(r){return r.json()}).then(function(d) {
-    var tb = document.getElementById("suspicious-table");
-    tb.innerHTML = "";
+    var tb = document.getElementById("suspicious-table"); tb.innerHTML = "";
     (d.suspicious || []).forEach(function(s) {
-      tb.innerHTML += "<tr>" +
-        "<td>" + (s.created_at||"").slice(0,19).replace("T"," ") + "</td>" +
-        "<td><b>" + s.username + "</b></td>" +
-        "<td><code>" + escapeHtml(s.submitted_flag) + "</code></td>" +
-        "<td><span class='text-danger'><b>" + (s.matched_user||"?") + "</b></span></td>" +
-        "<td>#" + s.matched_instance_id + "</td>" +
-        "</tr>";
+      tb.innerHTML += "<tr style='background:#1a0a0a'><td>" + ts(s.created_at) + "</td><td><b style='color:#f85149'>" + escapeHtml(s.username) + "</b></td><td><code>" + escapeHtml(s.submitted_flag) + "</code></td><td><b style='color:#7ee787'>" + escapeHtml(s.matched_user||"?") + "</b></td><td>#" + s.matched_instance_id + "</td></tr>";
     });
-    if (!d.suspicious || d.suspicious.length === 0) {
-      tb.innerHTML = "<tr><td colspan=5 class='text-muted text-center'>No suspicious submissions</td></tr>";
-    }
+    if (!d.suspicious || !d.suspicious.length) tb.innerHTML = "<tr><td colspan=5 class='text-muted text-center'>No suspicious submissions yet</td></tr>";
   });
 }
 
 function loadBashHistory() {
   var slot = document.getElementById("history-select").value;
   if (!slot) { alert("Select a box first"); return; }
-  var st = document.getElementById("history-status");
-  st.textContent = "Loading...";
-
+  var st = document.getElementById("history-status"); st.textContent = "Loading...";
   fetch(API + "/bash-history/" + slot).then(function(r){return r.json()}).then(function(d) {
     var out = document.getElementById("bash-history-output");
     var cmds = d.history && d.history.commands ? d.history.commands : [];
-
-    if (cmds.length === 0) {
-      out.innerHTML = '<span style="color:#6e7681">No commands recorded yet.\nCommands are logged when players SSH into the box via WireGuard.</span>';
-      st.textContent = "Empty";
-      return;
-    }
-
-    var html = "";
+    if (!cmds.length) { out.innerHTML = '<span style="color:#6e7681">No commands recorded yet.\nCommands logged when players SSH in via WireGuard.</span>'; st.textContent = "Empty"; return; }
+    var h = "";
     cmds.forEach(function(line) {
       var m = line.match(/^(\S+)\s+(\S+)\s+(.*)$/);
       if (m) {
-        var time = m[1], user = m[2], cmd = m[3];
-        var uc = user === "root" ? "#f85149" : user === "taylor" ? "#7ee787" : "#d29922";
-        html += '<span style="color:#6e7681">' + escapeHtml(time) + '</span> <span style="color:' + uc + ';font-weight:bold">' + escapeHtml(user) + '</span> <span style="color:#e6edf3">$ ' + escapeHtml(cmd) + '</span>\n';
-      } else {
-        html += escapeHtml(line) + '\n';
-      }
+        var uc = m[2]==="root" ? "#f85149" : m[2]==="taylor" ? "#7ee787" : "#d29922";
+        h += '<span style="color:#6e7681">' + escapeHtml(m[1]) + '</span> <span style="color:' + uc + ';font-weight:bold">' + escapeHtml(m[2]) + '</span> <span style="color:#e6edf3">$ ' + escapeHtml(m[3]) + '</span>\n';
+      } else { h += escapeHtml(line) + '\n'; }
     });
-    out.innerHTML = html;
-    st.textContent = cmds.length + " commands";
-  }).catch(function(e) {
-    document.getElementById("bash-history-output").textContent = "Error: " + e;
-    st.textContent = "";
+    out.innerHTML = h; st.textContent = cmds.length + " cmds";
   });
 }
 
@@ -212,18 +184,12 @@ function loadContainerLogs() {
   if (!slot) { alert("Select a container"); return; }
   document.getElementById("container-log-status").textContent = "Loading...";
   fetch(API + "/container-logs/" + slot).then(function(r){return r.json()}).then(function(d) {
-    document.getElementById("container-log-output").textContent = d.logs || "No logs available";
+    document.getElementById("container-log-output").textContent = d.logs || "No logs";
     document.getElementById("container-log-status").textContent = (d.logs||"").split("\n").length + " lines";
-  }).catch(function(e) {
-    document.getElementById("container-log-output").textContent = "Error loading logs";
-    document.getElementById("container-log-status").textContent = "";
   });
 }
 
-loadStats();
-loadInstances();
-loadLogs();
-loadSuspicious();
+loadStats(); loadInstances(); loadLogs(); loadSuspicious();
 setInterval(function() { loadStats(); loadInstances(); }, 10000);
 </script>
 {% endblock %}
