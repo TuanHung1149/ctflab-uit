@@ -50,6 +50,7 @@ class LabInstance(db.Model):
     container_id = db.Column(db.String(80))
     network_id = db.Column(db.String(80))
     container_ip = db.Column(db.String(20))
+    ssh_password = db.Column(db.String(64))
     status = db.Column(db.String(20), default="starting")
     flags_json = db.Column(db.Text, default="{}")
     vpn_config = db.Column(db.Text)

@@ -1,9 +1,9 @@
 """Flask blueprint with API routes for CTFLab instance management.
 
 HTB-style model:
-- Each user gets ONE .ovpn file (downloaded from /api/ctflab/vpn)
-- When user spawns a box, CCD is updated to push route to their box
-- User keeps same VPN connection, route updates on reconnect
+- Each user gets ONE WireGuard .conf file (downloaded from /api/ctflab/vpn)
+- When user spawns a box, WireGuard peer AllowedIPs is updated
+- User keeps same VPN connection with static config
 """
 
 import io
@@ -17,7 +17,6 @@ from CTFd.models import db
 from CTFd.utils.decorators import authed_only, admins_only
 from CTFd.utils.user import get_current_user
 from flask import Blueprint, jsonify, request, send_file, render_template
-from sqlalchemy import text
 
 from .docker_utils import DockerManager
 from .flag_utils import generate_flags
@@ -35,8 +34,7 @@ docker_mgr = DockerManager()
 logger = logging.getLogger(__name__)
 
 MAX_SLOT = 50
-SERVER_IP = os.environ.get("OVPN_SERVER_IP", "152.42.233.178")
-SLOT_LOCK_NAME = "ctflab_slot_allocate"
+SERVER_IP = os.environ.get("WG_SERVER_IP", os.environ.get("OVPN_SERVER_IP", "152.42.233.178"))
 
 
 def _log_action(action, detail=None, user_id=None):
@@ -70,32 +68,10 @@ def _find_free_slot():
 
 
 @contextmanager
-def _slot_lock(timeout=10):
-    """Serialize slot allocation across concurrent requests."""
-    dialect = getattr(db.session.bind, "dialect", None)
-    dialect_name = getattr(dialect, "name", "")
-
-    if dialect_name not in {"mysql", "mariadb"}:
-        yield
-        return
-
-    acquired = db.session.execute(
-        text("SELECT GET_LOCK(:name, :timeout)"),
-        {"name": SLOT_LOCK_NAME, "timeout": timeout},
-    ).scalar()
-    if acquired != 1:
-        raise RuntimeError("Failed to acquire slot allocation lock")
-
-    try:
-        yield
-    finally:
-        try:
-            db.session.execute(
-                text("SELECT RELEASE_LOCK(:name)"),
-                {"name": SLOT_LOCK_NAME},
-            )
-        except Exception:
-            logger.exception("Failed to release slot allocation lock")
+def _slot_lock(timeout=30):
+    """Refresh session state before slot allocation."""
+    db.session.expire_all()
+    yield
 
 
 def _collect_prefixes_for_image(docker_image):
@@ -120,25 +96,25 @@ def _collect_prefixes_for_image(docker_image):
 @ctflab_bp.route("/vpn", methods=["GET"])
 @authed_only
 def download_user_vpn():
-    """Download the user's .ovpn file (one per user, reusable for all boxes)."""
+    """Download the user's WireGuard .conf file (one per user, reusable for all boxes)."""
     user = get_current_user()
     try:
-        ovpn_path = ensure_user_vpn(user.name, SERVER_IP)
+        conf_path = ensure_user_vpn(user.name, SERVER_IP)
     except Exception as e:
         logger.exception("Failed to provision VPN for %s", user.name)
         return jsonify({"error": f"VPN config not available: {str(e)}"}), 500
 
-    if not ovpn_path or not os.path.isfile(ovpn_path):
+    if not conf_path or not os.path.isfile(conf_path):
         return jsonify({"error": "VPN config not available. Contact admin."}), 500
 
-    content = open(ovpn_path).read()
+    content = open(conf_path).read()
     _log_action("vpn_download")
     buf = io.BytesIO(content.encode())
     return send_file(
         buf,
         as_attachment=True,
-        download_name=f"{user.name}.ovpn",
-        mimetype="application/x-openvpn-profile",
+        download_name=f"{user.name}.conf",
+        mimetype="text/plain",
     )
 
 
@@ -164,6 +140,9 @@ def create_instance():
     timeout_seconds = challenge.instance_timeout or 14400
 
     with _slot_lock():
+        # Expire cached ORM state so we see committed data from other greenlets
+        db.session.expire_all()
+
         existing = (
             LabInstance.query.filter_by(user_id=user.id, docker_image=docker_image)
             .filter(LabInstance.status.in_(["starting", "running"]))
@@ -174,6 +153,7 @@ def create_instance():
                 "id": existing.id,
                 "status": existing.status,
                 "container_ip": existing.container_ip,
+                "ssh_password": existing.ssh_password,
                 "expires_at": existing.expires_at.isoformat() if existing.expires_at else None,
             })
 
@@ -205,13 +185,36 @@ def create_instance():
     container_id = None
     network_id = None
 
+    # Retry Docker creation if slot conflict (concurrent requests)
+    max_retries = 5
+    for attempt in range(max_retries):
+        try:
+            container_id, network_id, container_ip, ssh_password = docker_mgr.create_instance(
+                image=docker_image, slot=slot, flags=flags, env_overrides=env_data,
+            )
+            break  # Success
+        except Exception as docker_err:
+            err_str = str(docker_err)
+            if attempt < max_retries - 1 and ("already exists" in err_str or "Conflict" in err_str):
+                logger.warning("Slot %d conflict for user %s, retrying with new slot", slot, user.name)
+                import time
+                time.sleep(0.5)
+                db.session.expire_all()
+                slot = _find_free_slot()
+                if slot is None:
+                    instance.status = "error"
+                    db.session.commit()
+                    return jsonify({"error": "No slots available"}), 503
+                instance.slot = slot
+                db.session.commit()
+                continue
+            raise  # Re-raise if not a conflict or out of retries
+
     try:
-        container_id, network_id, container_ip = docker_mgr.create_instance(
-            image=docker_image, slot=slot, flags=flags, env_overrides=env_data,
-        )
         instance.container_id = container_id
         instance.network_id = network_id
         instance.container_ip = container_ip
+        instance.ssh_password = ssh_password
         instance.status = "running"
 
         ensure_user_vpn(user.name, SERVER_IP)
@@ -240,6 +243,7 @@ def create_instance():
         "id": instance.id,
         "status": instance.status,
         "container_ip": instance.container_ip,
+        "ssh_password": instance.ssh_password,
         "expires_at": instance.expires_at.isoformat(),
     })
 
@@ -267,6 +271,7 @@ def get_instance():
             "docker_image": instance.docker_image,
             "status": instance.status,
             "container_ip": instance.container_ip,
+            "ssh_password": instance.ssh_password,
             "expires_at": instance.expires_at.isoformat() if instance.expires_at else None,
         }
     })

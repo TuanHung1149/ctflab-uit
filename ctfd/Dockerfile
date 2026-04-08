@@ -1,11 +1,12 @@
 FROM ctfd/ctfd:3.7.1
 
-# Install Docker CLI + Python docker SDK
+# Install Docker CLI + Python docker SDK + WireGuard tools
 USER root
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         apt-transport-https ca-certificates curl gnupg \
-        iproute2 iptables nftables procps util-linux openssl && \
+        iproute2 iptables nftables procps util-linux openssl \
+        wireguard-tools && \
     install -m 0755 -d /etc/apt/keyrings && \
     curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc && \
     chmod a+r /etc/apt/keyrings/docker.asc && \
@@ -18,6 +19,9 @@ RUN pip install docker
 
 # Copy our custom plugin
 COPY plugins/ctflab /opt/CTFd/CTFd/plugins/ctflab
+
+# Set gunicorn timeout for Docker container creation (can take >30s)
+ENV GUNICORN_CMD_ARGS="--timeout 120"
 
 # Run as root to access Docker socket (required for container management)
 USER root

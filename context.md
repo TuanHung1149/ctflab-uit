@@ -4,7 +4,7 @@
 **VPS**: 152.42.233.178 (8GB RAM, Ubuntu 24.04)
 **Web**: http://152.42.233.178:8080 | Admin: admin / admin123
 **Mon hoc**: NT140 - UIT | **Giang vien**: Thay Khoa
-**Last updated**: 2026-04-07
+**Last updated**: 2026-04-08
 
 ---
 
@@ -18,8 +18,8 @@ CTF Lab giong **HackTheBox** cho sinh vien UIT:
 ### Flow (y chang HTB):
 ```
 1. Dang ky tren CTFd web
-2. Download .ovpn (1 file per user, dung mai)
-3. sudo openvpn username.ovpn
+2. Download WireGuard .conf (1 file per user, dung mai)
+3. Linux: sudo wg-quick up ./username.conf | Windows/Mac: WireGuard app -> Import -> Activate
 4. Click "Start Machine" tren web -> box spawn -> IP hien thi
 5. ssh taylor@10.100.{slot}.2 (password: lekkerding)
 6. Hack: tim 7 flags (NBL01-NBL07)
@@ -35,7 +35,7 @@ CTF Lab giong **HackTheBox** cho sinh vien UIT:
 Internet
   |
   +-- Port 8080: CTFd (web UI, challenge mgmt, scoreboard, flag submit)
-  +-- Port 1194: OpenVPN (40 users share 1 port)
+  +-- Port 51820: WireGuard (40 users share 1 port)
         |
         User1 (10.200.0.2) --> [iptables ACCEPT] --> Docker net 10.100.1.0/24 --> Box1
         User2 (10.200.0.3) --> [iptables ACCEPT] --> Docker net 10.100.2.0/24 --> Box2
@@ -49,7 +49,7 @@ Internet
 | Database | MariaDB 10.11 |
 | Cache | Redis 7 |
 | Container | Docker (1 container per user per box) |
-| VPN | OpenVPN + EasyRSA PKI |
+| VPN | WireGuard (port 51820/udp) |
 | Isolation | iptables CTFLAB_ISOLATION chain + Docker bridge networks |
 
 ---
@@ -82,12 +82,11 @@ ctflab-uit/
 │   │   │   └── supervisord.conf # 6 services: sshd, chall1, named, nginx, php, maltrail
 │   │   └── chall1-7/           # Challenge source code
 │   └── easybox/                # Example simple box (SSH + 2 flags)
-├── openvpn/
-│   ├── setup-server.sh         # 1-time: install OpenVPN + EasyRSA + generate CA/server cert
-│   └── generate-client.sh      # Generate .ovpn with embedded certs per slot
+├── wireguard/
+│   └── setup-server.sh         # 1-time: install WireGuard + generate server keypair
 ├── scripts/
-│   ├── setup-vpn-user.sh       # Generate per-user VPN cert + .ovpn
-│   ├── update-vpn-route.sh     # Update CCD when box spawn/destroy
+│   ├── setup-wg-user.sh        # Generate per-user WireGuard keypair + .conf
+│   ├── update-wg-route.sh      # Update WireGuard AllowedIPs when box spawn/destroy
 │   ├── seed-challenges.sh      # Create challenges in CTFd via API
 │   ├── test-e2e-full.py        # 45-test full E2E test
 │   ├── test-isolation.py       # 3-user cross-access isolation test
@@ -126,9 +125,9 @@ Rule 6-7: ACCEPT slot2 VPN (10.200.0.3) <-> Docker net (10.100.2.0/24)
 ...
 Last:     DROP all other VPN -> Docker (10.200.0.0/24 -> 10.100.0.0/16)
 ```
-- `sudo ip route add` tu client -> **BLOCKED** (server iptables check VPN source IP)
-- `client-to-client` removed from OpenVPN config
+- WireGuard peers have AllowedIPs restricted to their own Docker subnet
 - Rules tu dong rebuild moi 30 giay (cron + fix-vpn-routing.sh)
+- Per-user fixed slot: username -> slot mapping in /etc/wireguard/slots.json
 
 ### Per-Instance:
 - Flags random moi khi Start Machine (inject-flags.py)
@@ -172,6 +171,7 @@ git clone https://github.com/TuanHung1149/ctflab-uit.git
 cd ctflab-uit
 sudo bash deploy.sh
 ```
+→ Auto install Docker + WireGuard + build images + start CTFd
 
 ### Them box moi:
 ```bash
@@ -252,28 +252,19 @@ Flags: all different  Client-to-client: BLOCKED
 
 ---
 
-## 11. KNOWN ISSUES & NEXT STEPS (2026-04-08)
+## 11. MIGRATION: OpenVPN → WireGuard (2026-04-08)
 
-### OpenVPN + WSL2 Bug:
+### Why:
 - OpenVPN 2.7_rc2 tren WSL2: `write to TUN/TAP: fd=-1` (tun device broken)
-- Khong fix duoc tu server side - do la bug cua OpenVPN RC + WSL2 kernel
-- Native Linux / Kali VM / Windows OpenVPN GUI: hoat dong binh thuong
+- WireGuard hoat dong tren tat ca: WSL2, Windows, Linux, Mac
+- Config don gian hon (1 file .conf, khong can PKI/CA)
+- Performance tot hon, kernel-level
 
-### Giai phap de xuat: CHUYEN SANG WIREGUARD
-- WireGuard hoat dong tren WSL2 + Windows + Linux + Mac
-- Config don gian hon OpenVPN (1 file, khong can PKI/CA)
-- Performance tot hon
-- HTB cung dang chuyen sang WireGuard
-- Can implement: wg genkey, wg set, per-user peer config
-
-### Fallback da cai: Web Terminal (ttyd)
-- ttyd da cai tren VPS
-- Script: /opt/ctflab-uit/scripts/start-web-terminal.sh <slot>
-- Students mo browser: http://VPS:700X -> SSH terminal trong browser
-- Firewall: ports 7001-7050 da open
-
-### TODO cho session moi:
-1. Implement WireGuard thay OpenVPN
-2. Update CTFd plugin de generate WireGuard config
-3. Test tren WSL2 + Linux + Windows
-4. Update context.md
+### What changed:
+- Port 1194/udp (OpenVPN) → **51820/udp** (WireGuard)
+- `.ovpn` files → `.conf` files
+- EasyRSA PKI → WireGuard keypairs (wg genkey/pubkey)
+- CCD routing → WireGuard AllowedIPs
+- Per-user fixed slot (slots.json) — config download 1 lan dung mai
+- IP scheme **giu nguyen**: 10.200.0.0/24 (VPN), 10.100.x.0/24 (Docker)
+- iptables CTFLAB_ISOLATION **giu nguyen** 100%

@@ -1,9 +1,8 @@
 """Host-side VPN and firewall helpers for CTFLab.
 
-These helpers execute networking commands in the host network namespace.
-The CTFd container joins the host PID namespace, so ``nsenter --target 1``
-can safely reach the host net namespace while keeping the container's mount
-namespace (which still contains the mounted repo scripts and /etc/openvpn).
+WireGuard-based VPN management. The CTFd container has access to
+/etc/wireguard (mounted) and /scripts (mounted) to manage WireGuard
+peers and generate client configs.
 """
 
 from __future__ import annotations
@@ -28,11 +27,7 @@ def _run(
     *,
     timeout: int = 30,
     check: bool = True,
-    use_host_netns: bool = False,
 ) -> subprocess.CompletedProcess[str]:
-    if use_host_netns:
-        cmd = ["nsenter", "--target", "1", "--net", "--"] + cmd
-
     result = subprocess.run(
         cmd,
         capture_output=True,
@@ -48,66 +43,84 @@ def _run(
     return result
 
 
+def _sync_wireguard() -> None:
+    """Trigger host-side WireGuard peer sync.
+
+    The sync script runs on the host and processes pending wg operations.
+    We try multiple paths since the script may be in different locations.
+    """
+    for script in [
+        "/opt/ctflab-uit/wireguard/sync-peers.sh",
+        "/scripts/../wireguard/sync-peers.sh",
+    ]:
+        if os.path.isfile(script):
+            _run(["bash", script], timeout=10, check=False)
+            return
+
+
 def ensure_user_vpn(username: str, server_ip: str) -> str:
-    """Create a reusable per-user .ovpn file if needed and return its path."""
+    """Create a reusable per-user WireGuard .conf file if needed and return its path."""
     _validate_name(username, "username")
 
-    for ovpn_path in [
-        f"/vpn-configs/{username}.ovpn",
-        f"/opt/ctflab-uit/vpn-configs/{username}.ovpn",
+    # Check if config already exists
+    for conf_path in [
+        f"/vpn-configs/{username}.conf",
+        f"/opt/ctflab-uit/vpn-configs/{username}.conf",
     ]:
-        if os.path.isfile(ovpn_path):
-            return ovpn_path
+        if os.path.isfile(conf_path):
+            return conf_path
 
+    # Find and run the setup script
     script = None
     for candidate in [
-        "/scripts/setup-vpn-user.sh",
-        "/opt/ctflab-uit/scripts/setup-vpn-user.sh",
+        "/scripts/setup-wg-user.sh",
+        "/opt/ctflab-uit/scripts/setup-wg-user.sh",
     ]:
         if os.path.isfile(candidate):
             script = candidate
             break
 
     if not script:
-        raise RuntimeError("setup-vpn-user.sh not found")
+        raise RuntimeError("setup-wg-user.sh not found")
 
     _run(["bash", script, username, server_ip], timeout=60)
 
-    for ovpn_path in [
-        f"/vpn-configs/{username}.ovpn",
-        f"/opt/ctflab-uit/vpn-configs/{username}.ovpn",
+    # Return the generated config path
+    for conf_path in [
+        f"/vpn-configs/{username}.conf",
+        f"/opt/ctflab-uit/vpn-configs/{username}.conf",
     ]:
-        if os.path.isfile(ovpn_path):
-            return ovpn_path
+        if os.path.isfile(conf_path):
+            return conf_path
 
-    raise RuntimeError(f"VPN config was not generated for {username}")
+    raise RuntimeError(f"WireGuard config was not generated for {username}")
 
 
 def update_vpn_route(username: str, slot: int | None) -> None:
-    """Update the OpenVPN CCD entry for a user."""
+    """Update the WireGuard peer's AllowedIPs when a box starts/stops."""
     _validate_name(username, "username")
 
     script = None
     for candidate in [
-        "/scripts/update-vpn-route.sh",
-        "/opt/ctflab-uit/scripts/update-vpn-route.sh",
+        "/scripts/update-wg-route.sh",
+        "/opt/ctflab-uit/scripts/update-wg-route.sh",
     ]:
         if os.path.isfile(candidate):
             script = candidate
             break
 
     if not script:
-        raise RuntimeError("update-vpn-route.sh not found")
+        raise RuntimeError("update-wg-route.sh not found")
 
     action = str(slot) if slot is not None else "remove"
     _run(["bash", script, username, action], timeout=15)
 
 
 def rebuild_network_isolation() -> None:
-    """Rebuild host firewall rules for VPN <-> box access."""
+    """Rebuild host firewall rules for VPN <-> box access and sync WireGuard peers."""
     script = "/opt/ctflab-uit/fix-vpn-routing.sh"
     if not os.path.isfile(script):
         raise RuntimeError("fix-vpn-routing.sh not found")
 
-    _run(["bash", script], timeout=30, use_host_netns=False)
-
+    _run(["bash", script], timeout=30)
+    _sync_wireguard()

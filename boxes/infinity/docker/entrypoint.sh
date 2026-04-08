@@ -2,10 +2,11 @@
 
 set -euo pipefail
 
-# Ensure SSH user passwords are set correctly on every start
-echo "taylor:lekkerding" | chpasswd
-echo "brown:AI56JSPUac43v7MWkXdG" | chpasswd
-echo "john:S6V1frkRJLo40GKuglzp" | chpasswd
+# Set SSH password from environment (random per instance) or fallback
+SSH_PASS="${SSH_PASSWORD:-$(openssl rand -base64 12)}"
+echo "taylor:${SSH_PASS}" | chpasswd
+echo "brown:$(openssl rand -base64 16)" | chpasswd
+echo "john:$(openssl rand -base64 16)" | chpasswd
 
 # Inject per-instance random flags (from FLAGS_JSON env var set by platform)
 if [ -x /root/infinity/docker/inject-flags.sh ]; then

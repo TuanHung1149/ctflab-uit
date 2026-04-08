@@ -6,7 +6,7 @@ CTF Lab Platform for NT140 course at UIT - Hack The Box style.
 
 ```
 Users -> CTFd (Web UI) -> ctflab plugin -> Docker API
-                                        -> OpenVPN (per-user VPN)
+                                        -> WireGuard (per-user VPN)
                                         -> Isolated networks (per-user)
 ```
 
@@ -27,7 +27,8 @@ sudo bash deploy.sh
 |-----------|-------------|
 | `ctfd/` | CTFd deployment + custom ctflab plugin |
 | `boxes/infinity/` | Sample CTF box - "Nebula Nexus" (7 challenges) |
-| `openvpn/` | OpenVPN server setup + iptables isolation |
+| `wireguard/` | WireGuard server setup |
+| `openvpn/` | (Legacy) OpenVPN server setup - replaced by WireGuard |
 | `backend/` | Custom FastAPI backend (alternative to CTFd) |
 | `frontend/` | Custom Next.js frontend (alternative to CTFd) |
 
@@ -35,7 +36,7 @@ sudo bash deploy.sh
 
 The custom plugin adds HTB-style functionality:
 - **Launch Instance**: Creates isolated Docker network + container per user
-- **Download VPN**: Generates OpenVPN config for accessing the box
+- **Download VPN**: Generates WireGuard config for accessing the box
 - **Reset**: Restores box to original state
 - **Destroy**: Tears down container and network
 - **Flag Submission**: Per-instance random flags validated through CTFd
@@ -66,16 +67,16 @@ The custom plugin adds HTB-style functionality:
 ## Network Design
 
 ```
-User VPN (10.200.{slot}.2) 
-  -> Host OpenVPN Server (10.200.0.1)
+User WireGuard (10.200.{slot}.2) 
+  -> Host WireGuard Server (10.200.0.1)
     -> Docker Bridge (10.100.{slot}.0/24)
       -> CTF Box (10.100.{slot}.2)
 ```
 
 Each user gets:
-- Unique slot (1-50)
+- Unique fixed slot (1-50)
 - Isolated Docker network
-- OpenVPN tunnel to their network only (split tunnel)
+- WireGuard tunnel to their network only (split tunnel)
 - Per-instance randomized flags
 
 ## Development
@@ -96,7 +97,7 @@ docker compose up --build
 
 - **Frontend**: CTFd 3.7
 - **Container Management**: Docker SDK (Python)
-- **VPN**: OpenVPN + EasyRSA
+- **VPN**: WireGuard
 - **Database**: MariaDB
 - **Cache**: Redis
 

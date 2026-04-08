@@ -124,9 +124,9 @@ check "Has VPN config" "has_vpn" "$STATUS"
 echo -e "${YELLOW}[7/10] VPN download${NC}"
 if [ -n "$INST_ID" ]; then
     VPN=$(api_get "/api/ctflab/instances/${INST_ID}/vpn")
-    check "VPN has client directive" "client" "$VPN"
-    check "VPN has route" "route 10\.100" "$VPN"
-    check "VPN split tunnel" "route-nopull" "$VPN"
+    check "VPN has Interface section" "Interface" "$VPN"
+    check "VPN has Peer section" "Peer" "$VPN"
+    check "VPN has Endpoint" "Endpoint" "$VPN"
 fi
 
 # ---- 8. Flag submission ----

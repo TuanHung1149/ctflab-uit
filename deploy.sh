@@ -32,17 +32,18 @@ else
     echo "[2/6] Docker Compose already installed"
 fi
 
-# Install OpenVPN and EasyRSA
-if ! command -v openvpn &> /dev/null; then
-    echo "[3/6] Installing OpenVPN + EasyRSA..."
-    apt-get install -y openvpn easy-rsa
+# Install WireGuard
+if ! command -v wg &> /dev/null; then
+    echo "[3/6] Installing WireGuard..."
+    apt-get update
+    apt-get install -y wireguard-tools
 else
-    echo "[3/6] OpenVPN already installed"
+    echo "[3/6] WireGuard already installed"
 fi
 
-# Setup OpenVPN server
-echo "[4/6] Setting up OpenVPN server..."
-bash openvpn/setup-server.sh
+# Setup WireGuard server
+echo "[4/6] Setting up WireGuard server..."
+bash wireguard/setup-server.sh
 
 # Ensure runtime directories exist
 mkdir -p vpn-configs
@@ -61,7 +62,7 @@ echo "  Deployment Complete!"
 echo "============================================"
 echo ""
 echo "  CTFd Web UI:    http://$(hostname -I | awk '{print $1}'):8080"
-echo "  OpenVPN Port:   1194/udp"
+echo "  WireGuard Port: 51820/udp"
 echo ""
 echo "  Next steps:"
 echo "  1. Open CTFd in browser and create admin account"

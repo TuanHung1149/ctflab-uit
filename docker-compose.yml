@@ -14,7 +14,9 @@ services:
       - UPLOAD_FOLDER=/var/uploads
       - LOG_FOLDER=/var/log/CTFd
       - REVERSE_PROXY=true
-      - OVPN_SERVER_IP=${OVPN_SERVER_IP:-152.42.233.178}
+      - WG_SERVER_IP=${WG_SERVER_IP:-152.42.233.178}
+      - WORKERS=1
+      - GUNICORN_CMD_ARGS=--timeout 120
     volumes:
       - ctfd_uploads:/var/uploads
       - ctfd_logs:/var/log/CTFd
@@ -22,7 +24,7 @@ services:
       - ./boxes:/boxes:ro
       - ./scripts:/scripts:ro
       - ./vpn-configs:/vpn-configs
-      - /etc/openvpn:/etc/openvpn
+      - /etc/wireguard:/etc/wireguard
       - ./fix-vpn-routing.sh:/opt/ctflab-uit/fix-vpn-routing.sh:ro
     depends_on:
       db:
