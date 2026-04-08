@@ -19,6 +19,7 @@
     <li class="nav-item"><a class="nav-link active" data-toggle="tab" href="#tab-instances">Active Instances</a></li>
     <li class="nav-item"><a class="nav-link" data-toggle="tab" href="#tab-logs">Activity Logs</a></li>
     <li class="nav-item"><a class="nav-link" data-toggle="tab" href="#tab-suspicious">Suspicious Flags</a></li>
+    <li class="nav-item"><a class="nav-link" data-toggle="tab" href="#tab-bash-history"><i class="fas fa-terminal"></i> Bash History</a></li>
     <li class="nav-item"><a class="nav-link" data-toggle="tab" href="#tab-container-logs">Container Logs</a></li>
   </ul>
 
@@ -57,6 +58,17 @@
       </table>
     </div>
 
+    <!-- Bash History -->
+    <div class="tab-pane fade" id="tab-bash-history">
+      <div class="mb-2">
+        <select id="history-select" class="form-control form-control-sm d-inline-block" style="width:300px;"></select>
+        <button class="btn btn-sm btn-primary" onclick="loadBashHistory()"><i class="fas fa-terminal"></i> Load History</button>
+        <button class="btn btn-sm btn-outline-secondary" onclick="loadBashHistory()"><i class="fas fa-sync"></i> Refresh</button>
+        <span class="ml-2 text-muted" id="history-status"></span>
+      </div>
+      <pre id="bash-history-output" style="background:#0d1117; color:#c9d1d9; padding:15px; border-radius:8px; max-height:600px; overflow-y:auto; font-size:0.85em; font-family:'Cascadia Code',Consolas,monospace; border:1px solid #30363d;"><span style="color:#6e7681">Select a box and click "Load History" to view player commands.</span></pre>
+    </div>
+
     <!-- Container Logs -->
     <div class="tab-pane fade" id="tab-container-logs">
       <div class="mb-2">
@@ -64,7 +76,7 @@
         <button class="btn btn-sm btn-primary" onclick="loadContainerLogs()">Load Logs</button>
         <span class="ml-2 text-muted" id="container-log-status"></span>
       </div>
-      <pre id="container-log-output" style="background:#1a1a2e; color:#0f0; padding:15px; border-radius:5px; max-height:500px; overflow-y:auto; font-size:0.85em;"></pre>
+      <pre id="container-log-output" style="background:#0d1117; color:#7ee787; padding:15px; border-radius:8px; max-height:600px; overflow-y:auto; font-size:0.85em; font-family:'Cascadia Code',Consolas,monospace; border:1px solid #30363d;"></pre>
     </div>
   </div>
 </div>
@@ -72,8 +84,14 @@
 <script>
 var API = "/api/ctflab/admin";
 
+function escapeHtml(text) {
+  var d = document.createElement('div');
+  d.textContent = text;
+  return d.innerHTML;
+}
+
 function loadStats() {
-  fetch(API + "/stats").then(r => r.json()).then(d => {
+  fetch(API + "/stats").then(function(r){return r.json()}).then(function(d) {
     document.getElementById("stat-active").textContent = d.active_instances;
     document.getElementById("stat-users").textContent = d.total_users;
     document.getElementById("stat-solves").textContent = d.total_solves;
@@ -84,18 +102,34 @@ function loadStats() {
 }
 
 function loadInstances() {
-  fetch(API + "/instances").then(r => r.json()).then(d => {
+  fetch(API + "/instances").then(function(r){return r.json()}).then(function(d) {
     var tb = document.getElementById("instances-table");
     tb.innerHTML = "";
-    (d.instances || []).forEach(i => {
-      tb.innerHTML += "<tr><td>" + i.id + "</td><td><b>" + i.username + "</b></td><td>" + i.docker_image + "</td><td>" + i.slot + "</td><td><code>" + (i.container_ip||"-") + "</code></td><td><span class='badge badge-success'>" + i.status + "</span></td><td>" + (i.created_at||"").slice(0,19) + "</td><td>" + (i.expires_at||"").slice(0,19) + "</td></tr>";
+    (d.instances || []).forEach(function(i) {
+      tb.innerHTML += "<tr>" +
+        "<td>" + i.id + "</td>" +
+        "<td><b>" + i.username + "</b></td>" +
+        "<td><code>" + i.docker_image + "</code></td>" +
+        "<td>" + i.slot + "</td>" +
+        "<td><code style='color:#28a745'>" + (i.container_ip||"-") + "</code></td>" +
+        "<td><span class='badge badge-success'>" + i.status + "</span></td>" +
+        "<td>" + (i.created_at||"").slice(0,19).replace("T"," ") + "</td>" +
+        "<td>" + (i.expires_at||"").slice(0,19).replace("T"," ") + "</td>" +
+        "</tr>";
     });
-    if (!d.instances || d.instances.length === 0) tb.innerHTML = "<tr><td colspan=8 class='text-muted text-center'>No active instances</td></tr>";
-    // Also populate container select
-    var sel = document.getElementById("container-select");
-    sel.innerHTML = "<option value=''>Select container...</option>";
-    (d.instances || []).forEach(i => {
-      sel.innerHTML += "<option value='" + i.slot + "'>" + i.username + " - slot " + i.slot + " (" + (i.container_ip||"?") + ")</option>";
+    if (!d.instances || d.instances.length === 0) {
+      tb.innerHTML = "<tr><td colspan=8 class='text-muted text-center'>No active instances</td></tr>";
+    }
+
+    // Populate selects
+    var sel1 = document.getElementById("container-select");
+    var sel2 = document.getElementById("history-select");
+    sel1.innerHTML = "<option value=''>Select container...</option>";
+    sel2.innerHTML = "<option value=''>Select box...</option>";
+    (d.instances || []).forEach(function(i) {
+      var opt = "<option value='" + i.slot + "'>" + i.username + " — slot " + i.slot + " (" + (i.container_ip||"?") + ")</option>";
+      sel1.innerHTML += opt;
+      sel2.innerHTML += opt;
     });
   });
 }
@@ -103,24 +137,73 @@ function loadInstances() {
 function loadLogs() {
   var filter = document.getElementById("log-filter").value;
   var url = API + "/logs" + (filter ? "?action=" + filter : "");
-  fetch(url).then(r => r.json()).then(d => {
+  fetch(url).then(function(r){return r.json()}).then(function(d) {
     var tb = document.getElementById("logs-table");
     tb.innerHTML = "";
-    (d.logs || []).forEach(l => {
-      var actionClass = {"start_machine":"success","stop_machine":"danger","reset_machine":"warning","vpn_download":"info"}[l.action] || "secondary";
-      tb.innerHTML += "<tr><td>" + (l.created_at||"").slice(0,19) + "</td><td><b>" + (l.username||"?") + "</b></td><td><span class='badge badge-" + actionClass + "'>" + l.action + "</span></td><td>" + (l.detail||"-") + "</td><td><code>" + (l.ip_address||"-") + "</code></td></tr>";
+    (d.logs || []).forEach(function(l) {
+      var cls = {"start_machine":"success","stop_machine":"danger","reset_machine":"warning","vpn_download":"info"}[l.action] || "secondary";
+      tb.innerHTML += "<tr>" +
+        "<td>" + (l.created_at||"").slice(0,19).replace("T"," ") + "</td>" +
+        "<td><b>" + (l.username||"?") + "</b></td>" +
+        "<td><span class='badge badge-" + cls + "'>" + l.action + "</span></td>" +
+        "<td>" + (l.detail||"-") + "</td>" +
+        "<td><code>" + (l.ip_address||"-") + "</code></td>" +
+        "</tr>";
     });
   });
 }
 
 function loadSuspicious() {
-  fetch(API + "/suspicious").then(r => r.json()).then(d => {
+  fetch(API + "/suspicious").then(function(r){return r.json()}).then(function(d) {
     var tb = document.getElementById("suspicious-table");
     tb.innerHTML = "";
-    (d.suspicious || []).forEach(s => {
-      tb.innerHTML += "<tr><td>" + (s.created_at||"").slice(0,19) + "</td><td><b>" + s.username + "</b></td><td><code>" + s.submitted_flag + "</code></td><td>" + (s.matched_user||"?") + "</td><td>#" + s.matched_instance_id + "</td></tr>";
+    (d.suspicious || []).forEach(function(s) {
+      tb.innerHTML += "<tr>" +
+        "<td>" + (s.created_at||"").slice(0,19).replace("T"," ") + "</td>" +
+        "<td><b>" + s.username + "</b></td>" +
+        "<td><code>" + escapeHtml(s.submitted_flag) + "</code></td>" +
+        "<td><span class='text-danger'><b>" + (s.matched_user||"?") + "</b></span></td>" +
+        "<td>#" + s.matched_instance_id + "</td>" +
+        "</tr>";
     });
-    if (!d.suspicious || d.suspicious.length === 0) tb.innerHTML = "<tr><td colspan=5 class='text-muted text-center'>No suspicious submissions</td></tr>";
+    if (!d.suspicious || d.suspicious.length === 0) {
+      tb.innerHTML = "<tr><td colspan=5 class='text-muted text-center'>No suspicious submissions</td></tr>";
+    }
+  });
+}
+
+function loadBashHistory() {
+  var slot = document.getElementById("history-select").value;
+  if (!slot) { alert("Select a box first"); return; }
+  var st = document.getElementById("history-status");
+  st.textContent = "Loading...";
+
+  fetch(API + "/bash-history/" + slot).then(function(r){return r.json()}).then(function(d) {
+    var out = document.getElementById("bash-history-output");
+    var cmds = d.history && d.history.commands ? d.history.commands : [];
+
+    if (cmds.length === 0) {
+      out.innerHTML = '<span style="color:#6e7681">No commands recorded yet.\nCommands are logged when players SSH into the box via WireGuard.</span>';
+      st.textContent = "Empty";
+      return;
+    }
+
+    var html = "";
+    cmds.forEach(function(line) {
+      var m = line.match(/^(\S+)\s+(\S+)\s+(.*)$/);
+      if (m) {
+        var time = m[1], user = m[2], cmd = m[3];
+        var uc = user === "root" ? "#f85149" : user === "taylor" ? "#7ee787" : "#d29922";
+        html += '<span style="color:#6e7681">' + escapeHtml(time) + '</span> <span style="color:' + uc + ';font-weight:bold">' + escapeHtml(user) + '</span> <span style="color:#e6edf3">$ ' + escapeHtml(cmd) + '</span>\n';
+      } else {
+        html += escapeHtml(line) + '\n';
+      }
+    });
+    out.innerHTML = html;
+    st.textContent = cmds.length + " commands";
+  }).catch(function(e) {
+    document.getElementById("bash-history-output").textContent = "Error: " + e;
+    st.textContent = "";
   });
 }
 
@@ -128,22 +211,19 @@ function loadContainerLogs() {
   var slot = document.getElementById("container-select").value;
   if (!slot) { alert("Select a container"); return; }
   document.getElementById("container-log-status").textContent = "Loading...";
-  fetch(API + "/container-logs/" + slot).then(r => r.json()).then(d => {
+  fetch(API + "/container-logs/" + slot).then(function(r){return r.json()}).then(function(d) {
     document.getElementById("container-log-output").textContent = d.logs || "No logs available";
-    document.getElementById("container-log-status").textContent = "Loaded " + (d.logs||"").split("\n").length + " lines";
-  }).catch(e => {
+    document.getElementById("container-log-status").textContent = (d.logs||"").split("\n").length + " lines";
+  }).catch(function(e) {
     document.getElementById("container-log-output").textContent = "Error loading logs";
     document.getElementById("container-log-status").textContent = "";
   });
 }
 
-// Load all on page load
 loadStats();
 loadInstances();
 loadLogs();
 loadSuspicious();
-
-// Auto-refresh every 10s
 setInterval(function() { loadStats(); loadInstances(); }, 10000);
 </script>
 {% endblock %}
