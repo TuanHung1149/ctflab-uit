@@ -31,6 +31,10 @@ iptables -I INPUT 1 -s 10.200.0.0/24 -p tcp --dport 22 -j DROP
 iptables -C INPUT -s 10.100.0.0/16 -p tcp --dport 22 -j DROP 2>/dev/null || \
 iptables -I INPUT 1 -s 10.100.0.0/16 -p tcp --dport 22 -j DROP
 
+# Block boxes from reaching ANY host service (CTFd, Redis, Elasticsearch, etc.)
+iptables -C INPUT -s 10.100.0.0/16 -j DROP 2>/dev/null || \
+iptables -A INPUT -s 10.100.0.0/16 -j DROP
+
 # Block boxes from reaching host public IP and docker0
 HOST_IP=$(curl -s --connect-timeout 2 ifconfig.me 2>/dev/null || echo "152.42.233.178")
 iptables -C INPUT -s 10.100.0.0/16 -d ${HOST_IP} -j DROP 2>/dev/null || \
@@ -100,6 +104,13 @@ for container in $(docker ps --filter "label=ctflab.managed=true" --format "{{.N
 done
 
 iptables -A CTFLAB_ISOLATION -s 10.200.0.0/24 -d 10.100.0.0/16 -j DROP
+
+# Block boxes from reaching internet (only allow their own subnet + VPN server)
+iptables -A CTFLAB_ISOLATION -s 10.100.0.0/16 -j DROP
+
+# Catch-all: block VPN users from going anywhere else (prevent open proxy)
+iptables -A CTFLAB_ISOLATION -s 10.200.0.0/24 -j DROP
+
 iptables -A CTFLAB_ISOLATION -j RETURN
 
 # WireGuard sync (only works on host, silently skipped in container)

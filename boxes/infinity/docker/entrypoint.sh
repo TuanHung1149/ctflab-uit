@@ -15,4 +15,8 @@ fi
 
 /root/infinity/docker/reset-state.sh
 
-exec /usr/bin/supervisord -n -c /etc/supervisor/supervisord.conf
+# SECURITY: Clear sensitive env vars then exec supervisord via env -i
+# This ensures FLAGS_JSON and SSH_PASSWORD are NOT visible via /proc/1/environ
+exec env -i PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" \
+    HOME="/root" TERM="${TERM:-xterm}" LANG="${LANG:-C.UTF-8}" \
+    /usr/bin/supervisord -n -c /etc/supervisor/supervisord.conf
