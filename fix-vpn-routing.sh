@@ -20,31 +20,26 @@ done
 iptables -t nat -C POSTROUTING -s 10.200.0.0/24 -j MASQUERADE 2>/dev/null || \
 iptables -t nat -A POSTROUTING -s 10.200.0.0/24 -j MASQUERADE
 
-# Block VPN users from accessing Docker bridge gateway IPs (INPUT chain)
-# Without this, VPN users can ping/reach 10.100.x.1 (host bridge IP)
-iptables -C INPUT -s 10.200.0.0/24 -d 10.100.0.0/16 -j DROP 2>/dev/null || \
-iptables -I INPUT 1 -s 10.200.0.0/24 -d 10.100.0.0/16 -j DROP
+# INPUT chain rules (host-only, skip in container where wg0 doesn't exist)
+if ip link show wg0 &>/dev/null; then
+    # Block VPN users from accessing Docker bridge gateway IPs
+    iptables -C INPUT -s 10.200.0.0/24 -d 10.100.0.0/16 -j DROP 2>/dev/null || \
+    iptables -I INPUT 1 -s 10.200.0.0/24 -d 10.100.0.0/16 -j DROP
 
-# Block SSH from VPN users and boxes (prevent host access via VPN)
-iptables -C INPUT -s 10.200.0.0/24 -p tcp --dport 22 -j DROP 2>/dev/null || \
-iptables -I INPUT 1 -s 10.200.0.0/24 -p tcp --dport 22 -j DROP
-iptables -C INPUT -s 10.100.0.0/16 -p tcp --dport 22 -j DROP 2>/dev/null || \
-iptables -I INPUT 1 -s 10.100.0.0/16 -p tcp --dport 22 -j DROP
+    # Block SSH from VPN users and boxes
+    iptables -C INPUT -s 10.200.0.0/24 -p tcp --dport 22 -j DROP 2>/dev/null || \
+    iptables -I INPUT 1 -s 10.200.0.0/24 -p tcp --dport 22 -j DROP
+    iptables -C INPUT -s 10.100.0.0/16 -p tcp --dport 22 -j DROP 2>/dev/null || \
+    iptables -I INPUT 1 -s 10.100.0.0/16 -p tcp --dport 22 -j DROP
 
-# Block boxes from reaching ANY host service (CTFd, Redis, Elasticsearch, etc.)
-iptables -C INPUT -s 10.100.0.0/16 -j DROP 2>/dev/null || \
-iptables -A INPUT -s 10.100.0.0/16 -j DROP
+    # Block boxes from reaching ANY host service
+    iptables -C INPUT -s 10.100.0.0/16 -j DROP 2>/dev/null || \
+    iptables -A INPUT -s 10.100.0.0/16 -j DROP
 
-# Block boxes from reaching host public IP and docker0
-HOST_IP=$(curl -s --connect-timeout 2 ifconfig.me 2>/dev/null || echo "152.42.233.178")
-iptables -C INPUT -s 10.100.0.0/16 -d ${HOST_IP} -j DROP 2>/dev/null || \
-iptables -I INPUT 1 -s 10.100.0.0/16 -d ${HOST_IP} -j DROP
-iptables -C INPUT -s 10.100.0.0/16 -d 172.17.0.0/16 -j DROP 2>/dev/null || \
-iptables -I INPUT 1 -s 10.100.0.0/16 -d 172.17.0.0/16 -j DROP
-
-# Block wg0-to-wg0 forwarding (prevent VPN client-to-client)
-iptables -C FORWARD -i wg0 -o wg0 -j DROP 2>/dev/null || \
-iptables -I FORWARD 2 -i wg0 -o wg0 -j DROP
+    # Block wg0-to-wg0 forwarding (prevent VPN client-to-client)
+    iptables -C FORWARD -i wg0 -o wg0 -j DROP 2>/dev/null || \
+    iptables -I FORWARD 2 -i wg0 -o wg0 -j DROP
+fi
 
 iptables -N CTFLAB_ISOLATION 2>/dev/null || true
 iptables -F CTFLAB_ISOLATION

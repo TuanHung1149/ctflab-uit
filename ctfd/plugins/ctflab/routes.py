@@ -480,6 +480,46 @@ def admin_container_logs(slot):
         return jsonify({"logs": f"Error: {str(e)}"})
 
 
+@ctflab_bp.route("/admin/bash-history/<int:slot>", methods=["GET"])
+@admins_only
+def admin_bash_history(slot):
+    """Admin: get bash command history of all users inside a box.
+
+    Reads from /var/log/ctflab_cmds.log (written by PROMPT_COMMAND trap)
+    and falls back to .bash_history files.
+    """
+    try:
+        container_name = f"ctflab_box_{slot}"
+        history = {}
+
+        # Primary: read centralized command log (set up by entrypoint)
+        try:
+            result = docker_mgr.exec_in_container(
+                container_name, ["cat", "/var/log/ctflab_cmds.log"]
+            )
+            if result.strip():
+                history["commands"] = result.strip().split("\n")
+        except Exception:
+            pass
+
+        # Fallback: read bash history files
+        if not history:
+            users = ["taylor", "brown", "john", "root"]
+            for user in users:
+                path = f"/home/{user}/.bash_history" if user != "root" else "/root/.bash_history"
+                try:
+                    result = docker_mgr.exec_in_container(container_name, ["cat", path])
+                    lines = [l for l in result.strip().split("\n") if l.strip() and "No such file" not in l]
+                    if lines:
+                        history[user] = lines
+                except Exception:
+                    pass
+
+        return jsonify({"slot": slot, "history": history})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @ctflab_bp.route("/admin/dashboard", methods=["GET"])
 @admins_only
 def admin_dashboard():

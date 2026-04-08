@@ -126,3 +126,9 @@ class DockerManager:
             return f"Container {container_name} not found"
         except Exception as e:
             return f"Error: {str(e)}"
+
+    def exec_in_container(self, container_name, cmd):
+        """Execute a command inside a running container and return stdout."""
+        c = self.client.containers.get(container_name)
+        result = c.exec_run(cmd)
+        return result.output.decode("utf-8", errors="replace")
