@@ -4,7 +4,7 @@
 **VPS**: 152.42.233.178 (8GB RAM, Ubuntu 24.04)
 **Web**: http://152.42.233.178:8080 | Admin: admin / admin123
 **Mon hoc**: NT140 - UIT | **Giang vien**: Thay Khoa
-**Last updated**: 2026-04-08
+**Last updated**: 2026-04-10
 
 ---
 
@@ -268,3 +268,186 @@ Flags: all different  Client-to-client: BLOCKED
 - Per-user fixed slot (slots.json) — config download 1 lan dung mai
 - IP scheme **giu nguyen**: 10.200.0.0/24 (VPN), 10.100.x.0/24 (Docker)
 - iptables CTFLAB_ISOLATION **giu nguyen** 100%
+
+---
+
+## 12. VPN ENDPOINT FIX: pfSense / HAProxy (2026-04-10)
+
+### Van de:
+- VPS 152.42.233.178 co WireGuard chay tren port **51820/udp** (WireGuard default)
+- Nhung sinh vien download VPN config nhan duoc endpoint `152.42.233.178:51820`
+- Thay te: port 51820 **bi block** boi firewall truong / mang truong (chi cho 80/443/1194)
+- Thuc te traffic VPN di qua **pfSense HAProxy** tren port **11194** → forward vao 51820
+
+### Fix:
+- Doi WG_SERVER_IP = `45.122.249.68` (pfSense public IP)
+- Doi WG_PORT = `11194` (HAProxy listener port)
+- Files da sua:
+  - `ctfd/plugins/ctflab/routes.py`: default `SERVER_IP → 45.122.249.68`, them `WG_PORT=11194`
+  - `ctfd/plugins/ctflab/host_ops.py`: `ensure_user_vpn()` nhan `wg_port` param
+  - `scripts/setup-wg-user.sh`: nhan `$3` optional wg_port, default `45.122.249.68:11194`
+- Commit: `a2be93b` — "fix: update WireGuard VPN endpoint to 45.122.249.68:11194"
+
+### Ket qua:
+- Sinh vien tai VPN config nhan endpoint: `45.122.249.68:11194`
+- pfSense HAProxy nhan tren 11194/udp → forward 152.42.233.178:51820
+- Kiem tra E2E 2 player dong thoi: ca 2 connect duoc, giai duoc cac challenge
+
+---
+
+## 13. MULTI-AGENT E2E TEST (2026-04-10)
+
+### Chay 3 agent song song de kiem tra platform:
+
+**Agent Alpha** (alpha_player1, user_id=24):
+- Dang ky → login → tai VPN → start box → lay flags → submit 4 challenge
+- Box slot=1, IP=10.100.1.2
+- Flags: NBL01{cCuaiNHb5n5wzjBej8}, NBL02{JvzuvPR1OAilEF3mxV}, NBL03{y2tQOWkxmhFheL7wUw}, NBL04{XOnVgkLKwRbhccg8dQ}
+- Ket qua: 4/4 CORRECT, score=450pts
+
+**Agent Beta** (beta_player1, user_id=23):
+- Chay song song voi Alpha
+- Box slot=2, IP=10.100.2.2
+- Flags KHAC HOAN TOAN so voi Alpha:
+  NBL01{FYuoFE9ceQR1JwuUbH}, NBL02{Wubo5AtYtVdFBNrFa3}, NBL03{enjdPHuF0Uoooct567}, NBL04{ydZaBZ4lUTz6mqLoTz}
+- Ket qua: 4/4 CORRECT, score=450pts
+
+**Agent Observer** (admin):
+- Giam sat 3 rounds trong suot qua trinh Alpha+Beta chay
+- DB vs Docker consistency: ✅ (container ID khop)
+- WireGuard peers: 14 total, 4 active handshake
+- Isolation: ctflab_box_1 (slot1) va ctflab_box_2 (slot2) tren mang rieng biet
+- Khong co loi trong CTFd logs, khong co error
+
+### Ket luan test:
+- ✅ Flag per-instance: moi box co flags khac nhau hoan toan
+- ✅ Isolation: 2 box chay dong thoi, mang rieng biet
+- ✅ VPN endpoint pfSense 45.122.249.68:11194: hoat dong
+- ✅ DB consistency: container_id trong DB khop Docker
+- ✅ CSRF handling: POST /api/ctflab/instances can CSRF-Token header
+- ✅ Suspicious detection: ghi nhan khi submit flag cua nguoi khac
+- ✅ Total instances sau test: 108 (cong don tu truoc)
+
+---
+
+## 14. CHALLENGE SETUP DAY DU (2026-04-10)
+
+### Truoc day chi co 4/7 challenge tren CTFd:
+- id=17 DNS Enumeration (NBL02) — 100pts
+- id=18 Web Exploitation (NBL03) — 150pts
+- id=19 Credential Access (NBL04) — 100pts
+- id=22 Network Service Recon (NBL01) — 100pts
+
+### Da them 3 challenge con thieu:
+- id=24 **Maltrail RCE** (NBL05) — 200pts — Exploit Maltrail 0.53 port 8338 → shell as brown
+- id=25 **SUID Privilege Escalation** (NBL06) — 200pts — SUID binary sysinfo → leo quyen len john
+- id=26 **Buffer Overflow** (NBL07) — 300pts — /usr/local/bin/rootnow BOF → root
+
+### Tat ca 7 challenge day du, category = "Nebula Nexus", docker_image = ctflab/infinity
+
+### Chi tiet cac challenge:
+| CTFd ID | Flag | Diem | Technique | Service/Port |
+|---------|------|------|-----------|--------------|
+| 22 | NBL01 | 100 | TCP connect port 7171, giai phep tinh | Python server :7171 |
+| 17 | NBL02 | 100 | dig axfr nebula.lab → tim subdomain unk → dig TXT unk.nebula.lab | BIND9 :53 |
+| 18 | NBL03 | 150 | Exploit TinyFileManager doc /opt/chall3/tinyfilemanager/infinity.txt | Nginx :80, vhost inffile123.nebula.lab |
+| 19 | NBL04 | 100 | SSH as taylor (pw hien tren UI) → cat ~/user.txt | SSH :22 |
+| 24 | NBL05 | 200 | CVE Maltrail RCE → shell as brown → cat /opt/chall5/flag.txt | Maltrail :8338 |
+| 25 | NBL06 | 200 | Binary sysinfo SUID → leo len john → cat /home/john/flag.txt | SSH shell |
+| 26 | NBL07 | 300 | BOF rootnow → root → cat /root/root.txt | SSH shell |
+
+### Luong leo quyen:
+```
+(network) → taylor (SSH password tren UI) → brown (Maltrail RCE) → john (SUID sysinfo) → root (BOF rootnow)
+```
+
+---
+
+## 15. DNS CHALLENGE CHI TIET (NBL02)
+
+### Cach giai:
+```bash
+# B1: Zone transfer zone chinh → thay subdomain "unk" an
+dig axfr nebula.lab @<box_ip>
+# → thay dong: unk.nebula.lab.  IN  A  127.0.0.1
+
+# B2: Zone transfer zone unk (allow-transfer: none) - khong duoc
+dig axfr unk.nebula.lab @<box_ip>    # REFUSED
+
+# B3: Query TXT record cua unk.nebula.lab truc tiep
+dig TXT unk.nebula.lab @<box_ip>
+# → "NBL02{...flag...}"
+```
+
+### Cau hinh BIND9:
+- `/etc/bind/named.conf.local`:
+  - zone "nebula.lab" → allow-transfer: any (sinh vien co the axfr)
+  - zone "unk.nebula.lab" → allow-transfer: none (khong axfr duoc, phai query TXT truc tiep)
+- `/etc/bind/zones/db.nebula.lab`: co A record `unk.nebula.lab → 127.0.0.1` (lo ra subdomain)
+- `/etc/bind/zones/db.unk.nebula.lab`: co `@ 3600 IN TXT "NBL02{...}"` (chua flag)
+
+### Flag inject:
+- `inject-flags.py` ghi flag NBL02 vao `/etc/bind/zones/db.unk.nebula.lab`
+- Named duoc reload sau khi inject
+
+---
+
+## 16. README CAP NHAT (2026-04-10)
+
+Da viet lai toan bo README.md bang tieng Viet, bao gom:
+- Kien truc mang day du voi so do ASCII
+- Bang 7 challenge voi technique, port, goi y giai
+- Tat ca API endpoints cua plugin ctflab co documentation
+- Co che flag random per-instance va suspicious detection
+- Bien moi truong WG_SERVER_IP/WG_PORT
+- Huong dan deploy, student flow, admin monitoring CLI
+- Commit: `f3b73a8` — "docs: viet lai README day du bang tieng Viet"
+
+---
+
+## 17. GITHUB CREDENTIALS (2026-04-10)
+
+- Remote: https://github.com/TuanHung1149/ctflab-uit.git
+- Da luu credential vao `~/.git-credentials` (git credential.helper store)
+- Push truc tiep bang `git push origin main` (khong can token moi lan)
+- Token luu trong ~/.git-credentials (Personal Access Token, khong luu vao git)
+
+---
+
+## 18. CLAUDE CODE HOOKS FIX (2026-04-10)
+
+### Van de:
+- Moi lan chay Bash/Edit/Write deu hien loi do: "Hook command references ${CLAUDE_PLUGIN_ROOT}"
+- Nguyen nhan: `~/.claude/settings.json` dung bien `${CLAUDE_PLUGIN_ROOT}` trong hook commands
+- Bien nay chi duoc Claude Code inject khi hook chay TU BEN TRONG plugin, khong phai tu settings.json toan cuc
+- Loi do hook fail → bao do, NHUNG lenh van chay binh thuong (khong anh huong output)
+
+### Fix:
+```bash
+cp ~/.claude/settings.json ~/.claude/settings.json.bak
+sed -i 's|${CLAUDE_PLUGIN_ROOT}|/root/.claude|g' ~/.claude/settings.json
+# Thay the 21 occurrences
+```
+- 8 occurrences con lai la OK:
+  - 1 dong dinh nghia env var `"CLAUDE_PLUGIN_ROOT": "/root/.claude"` (giu nguyen)
+  - 7 dong JS inline dung `process.env.CLAUDE_PLUGIN_ROOT` (doc env var trong JS, hoat dong binh thuong)
+- Backup tai: `~/.claude/settings.json.bak`
+- **Can restart Claude Code session de ap dung**
+
+---
+
+## 19. SCOREBOARD HIEN TAI (2026-04-10)
+
+| # | User | Score | Ghi chu |
+|---|------|-------|---------|
+| 1 | wgtest2 | 800 | Test account truoc do |
+| 2 | wgtest1 | 450 | Test account truoc do |
+| 3 | alpha_player1 | 450 | Multi-agent test |
+| 4 | beta_player1 | 450 | Multi-agent test |
+| 5 | wgtest3 | 100 | Test account truoc do |
+
+Total stats: 24 users, 108 instances, 17 solves, 2 fails, 5 suspicious
+
+---
+
+*Cap nhat: 2026-04-10 | Session: VPN endpoint fix + 3-agent E2E test + 3 challenge missing + README rewrite*
