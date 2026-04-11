@@ -34,7 +34,8 @@ docker_mgr = DockerManager()
 logger = logging.getLogger(__name__)
 
 MAX_SLOT = 50
-SERVER_IP = os.environ.get("WG_SERVER_IP", os.environ.get("OVPN_SERVER_IP", "152.42.233.178"))
+SERVER_IP = os.environ.get("WG_SERVER_IP", os.environ.get("OVPN_SERVER_IP", "45.122.249.68"))
+WG_PORT = int(os.environ.get("WG_PORT", os.environ.get("OVPN_SERVER_PORT", "11194")))
 
 
 def _log_action(action, detail=None, user_id=None):
@@ -99,7 +100,7 @@ def download_user_vpn():
     """Download the user's WireGuard .conf file (one per user, reusable for all boxes)."""
     user = get_current_user()
     try:
-        conf_path = ensure_user_vpn(user.name, SERVER_IP)
+        conf_path = ensure_user_vpn(user.name, SERVER_IP, WG_PORT)
     except Exception as e:
         logger.exception("Failed to provision VPN for %s", user.name)
         return jsonify({"error": f"VPN config not available: {str(e)}"}), 500
@@ -217,7 +218,7 @@ def create_instance():
         instance.ssh_password = ssh_password
         instance.status = "running"
 
-        ensure_user_vpn(user.name, SERVER_IP)
+        ensure_user_vpn(user.name, SERVER_IP, WG_PORT)
         update_vpn_route(user.name, slot)
         rebuild_network_isolation()
 

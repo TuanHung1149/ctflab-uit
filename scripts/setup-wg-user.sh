@@ -2,16 +2,16 @@
 set -euo pipefail
 
 # Generate or retrieve a WireGuard config for a user.
-# Usage: setup-wg-user.sh <username> <server_ip>
+# Usage: setup-wg-user.sh <username> <server_ip> [wg_port]
 #
 # - Assigns a FIXED slot (persisted in /etc/wireguard/slots.json)
 # - Generates keypair once per user
 # - Outputs .conf to /vpn-configs/<username>.conf
 # - Writes pending wg operation for host-side sync
 
-USERNAME="${1:?Usage: setup-wg-user.sh <username> <server_ip>}"
-SERVER_IP="${2:-152.42.233.178}"
-WG_PORT="51820"
+USERNAME="${1:?Usage: setup-wg-user.sh <username> <server_ip> [wg_port]}"
+SERVER_IP="${2:-45.122.249.68}"
+WG_PORT="${3:-11194}"
 WG_DIR="/etc/wireguard"
 CLIENT_DIR="${WG_DIR}/clients/${USERNAME}"
 SLOTS_FILE="${WG_DIR}/slots.json"

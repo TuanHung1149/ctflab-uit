@@ -58,7 +58,7 @@ def _sync_wireguard() -> None:
             return
 
 
-def ensure_user_vpn(username: str, server_ip: str) -> str:
+def ensure_user_vpn(username: str, server_ip: str, wg_port: int = 11194) -> str:
     """Create a reusable per-user WireGuard .conf file if needed and return its path."""
     _validate_name(username, "username")
 
@@ -83,7 +83,7 @@ def ensure_user_vpn(username: str, server_ip: str) -> str:
     if not script:
         raise RuntimeError("setup-wg-user.sh not found")
 
-    _run(["bash", script, username, server_ip], timeout=60)
+    _run(["bash", script, username, server_ip, str(wg_port)], timeout=60)
 
     # Return the generated config path
     for conf_path in [
